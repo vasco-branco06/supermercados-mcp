@@ -58,8 +58,6 @@ Sem credenciais, o plugin só pesquisa e compara. Para o Claude pôr produtos no
 
 Cria a pasta se não existir, guarda o ficheiro e reinicia o Claude Code. As ferramentas do carrinho (`get_cart`, `add_to_cart`, `update_cart_item`) só aparecem nos servidores do Pingo Doce e do Auchan quando existe o ficheiro. Não existe nenhuma ferramenta para finalizar a encomenda ou pagar.
 
-Aviso: o carrinho do Pingo Doce e do Auchan foi escrito a partir do padrão dos sites e testado só com respostas simuladas. Ainda não foi testado com uma conta real. Se algo falhar, abre um issue com a mensagem de erro (sem a palavra-passe).
-
 ## Privacidade
 
 Nada sai do teu computador, exceto os pedidos aos sites dos supermercados e a conversa com o Claude.

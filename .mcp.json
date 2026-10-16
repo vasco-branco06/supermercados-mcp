@@ -5,12 +5,12 @@
       "args": ["-y", "continente-mcp"]
     },
     "pingo-doce": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/pingo-doce/src/index.js"]
+      "command": "npx",
+      "args": ["-y", "pingo-doce-mcp"]
     },
     "auchan": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/auchan/src/index.js"]
+      "command": "npx",
+      "args": ["-y", "auchan-mcp"]
     }
   }
 }
