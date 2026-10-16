@@ -48,6 +48,19 @@ Limites do que cada site mostra na pesquisa (verificado em 2026-10-16):
 - Pingo Doce: promoção visível como texto e preço antigo; sem disponibilidade (null).
 - Auchan: disponibilidade visível; a promoção só carrega depois por outro pedido, por isso fica null.
 
+## Resposta de `search_products`
+
+Nos servidores do Pingo Doce e do Auchan, a resposta MCP tem um único bloco de texto com JSON:
+
+```json
+{ "store": "pingo-doce", "query": "leite", "count": 3, "products": [ /* produtos no formato acima */ ] }
+```
+
+- `limit` limita o número de produtos; se a página do site trouxer menos, devolve os que há (a v1 não pagina).
+- Sem resultados: `count: 0` e `products: []`, sem erro.
+- Erro (site mudou, bloqueio, sem rede): resposta com `isError: true` e uma frase que diz o que falhou, por exemplo `Error: pingo-doce: não encontrei os preços na página (o site pode ter mudado)`. Nunca um produto com preço inventado.
+- O Continente responde em texto formatado (é o servidor do David, não se altera). A skill extrai de lá `name, price, product_id, url, unit` e usa `normalizeContinente`.
+
 ## Normalização
 
 - `normalizeContinente(raw, fetched_at)`: `raw` é o objeto que o código do David devolve por produto (`name, price, currency, product_id, url, unit, minimum`).
