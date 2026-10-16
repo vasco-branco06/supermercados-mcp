@@ -66,6 +66,15 @@ const text = (value, isError = false) => ({
   ...(isError && { isError: true }),
 });
 
+const CHECKOUT_NOTE = 'A encomenda e o pagamento fazem-se no site auchan.pt.';
+
+// add_to_cart / update_cart_item answer with one short sentence (shared/CONTRATO.md).
+function cartReply(result, verb, productId, success) {
+  if (result.success) return text(success(result));
+  if (result.error === 'not_in_cart') return text(`Error: auchan: o produto ${productId} não está no carrinho.`, true);
+  return text(`Error: auchan: não consegui ${verb} ${productId} (${result.error}). Corre get_cart antes de tentar de novo.`, true);
+}
+
 function validateSearch(args) {
   const { query, limit = 10 } = args;
   if (typeof query !== 'string' || !query.trim() || query.length > 250 || /[\x00-\x1f\x7f]/.test(query)) {
@@ -115,9 +124,13 @@ export class AuchanServer {
         case 'add_to_cart':
         case 'update_cart_item': {
           const { product_id, quantity } = validateCartInput(name, args);
-          const run = name === 'add_to_cart' ? addToCart : updateCartItem;
-          const result = await run(this.session.site, product_id, quantity);
-          return text(result, !result.success);
+          return name === 'add_to_cart'
+            ? cartReply(await addToCart(this.session.site, product_id, quantity), 'adicionar', product_id,
+              r => `Adicionado ao carrinho: ${product_id}, agora com quantidade ${r.cart_quantity}. Usa get_cart para rever. ${CHECKOUT_NOTE}`)
+            : cartReply(await updateCartItem(this.session.site, product_id, quantity), 'mudar', product_id,
+              () => quantity === 0
+                ? `Removido do carrinho: ${product_id}. ${CHECKOUT_NOTE}`
+                : `Quantidade de ${product_id} no carrinho: ${quantity}. ${CHECKOUT_NOTE}`);
         }
         case 'close_session':
           await this.session?.close();

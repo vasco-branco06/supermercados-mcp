@@ -95,3 +95,44 @@ test('cart tools use the session and close_session closes it', async (t) => {
   assert.equal((await server.callTool('close_session', {})).content[0].text, 'Session closed.');
   assert.equal(closed, 1);
 });
+
+test('add_to_cart and update_cart_item answer with one short sentence, errors with isError', async (t) => {
+  let qty = 0;
+  let rejectWrites = false;
+  const site = {
+    async get(path) {
+      if (path.includes('Cart-Show')) {
+        return { status: 200, text: qty ? `<input data-pid="3010403" data-uuid="u" value="${qty}">` : '<html></html>' };
+      }
+      if (rejectWrites) return { status: 200, text: '{"error":true,"message":"Produto sem stock"}' };
+      const q = new URL(path, 'https://www.auchan.pt').searchParams;
+      qty = path.includes('RemoveProductLineItem') ? 0 : Number(q.get('quantity'));
+      return { status: 200, text: '{}' };
+    },
+    async post(path, form) { qty += Number(form.quantity); return { status: 200, text: '{"error":false}' }; },
+  };
+  const server = new AuchanServer({
+    env: { AUCHAN_STATE_DIR: stateDir(t, 'AUCHAN_EMAIL=a@b.pt\nAUCHAN_PASSWORD=segredo\n') },
+    session: { site, async close() {} },
+  });
+  const reply = async (name, args) => {
+    const result = await server.callTool(name, args);
+    assert.equal(result.content.length, 1);
+    return { text: result.content[0].text, isError: result.isError === true };
+  };
+  const note = 'A encomenda e o pagamento fazem-se no site auchan.pt.';
+
+  assert.deepEqual(await reply('add_to_cart', { product_id: '3010403', quantity: 2 }),
+    { text: `Adicionado ao carrinho: 3010403, agora com quantidade 2. Usa get_cart para rever. ${note}`, isError: false });
+  assert.deepEqual(await reply('update_cart_item', { product_id: '3010403', quantity: 5 }),
+    { text: `Quantidade de 3010403 no carrinho: 5. ${note}`, isError: false });
+  assert.deepEqual(await reply('update_cart_item', { product_id: '3010403', quantity: 0 }),
+    { text: `Removido do carrinho: 3010403. ${note}`, isError: false });
+  assert.deepEqual(await reply('update_cart_item', { product_id: '999', quantity: 1 }),
+    { text: 'Error: auchan: o produto 999 não está no carrinho.', isError: true });
+
+  rejectWrites = true;
+  qty = 1;
+  assert.deepEqual(await reply('update_cart_item', { product_id: '3010403', quantity: 3 }),
+    { text: 'Error: auchan: não consegui mudar 3010403 (Produto sem stock). Corre get_cart antes de tentar de novo.', isError: true });
+});
