@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "continente": {
+      "command": "npx",
+      "args": ["-y", "continente-mcp"]
+    },
+    "pingo-doce": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/pingo-doce/src/index.js"]
+    },
+    "auchan": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/auchan/src/index.js"]
+    }
+  }
+}
