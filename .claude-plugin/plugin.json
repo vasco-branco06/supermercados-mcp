@@ -1,0 +1,8 @@
+{
+  "name": "supermercados-mcp",
+  "version": "0.1.0",
+  "description": "Receitas da semana, lista de compras e o cesto mais barato entre Continente, Pingo Doce e Auchan.",
+  "author": { "name": "Vascobranco2509" },
+  "license": "MIT",
+  "keywords": ["supermercado", "continente", "pingo-doce", "auchan", "receitas", "lista-de-compras"]
+}
