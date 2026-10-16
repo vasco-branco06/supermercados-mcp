@@ -1,19 +1,32 @@
 # supermercados-mcp
 
-Plugin do Claude Code que planeia as refeições da semana e compara o preço do cesto no Continente, no Pingo Doce e no Auchan.
+Faz as compras do supermercado pelo Claude. Liga o Claude Code ao Continente, ao Pingo Doce e ao Auchan: ele procura os produtos, junta-os ao carrinho da tua conta, e tu só finalizas e pagas no site.
 
 ## O que faz
 
-Dizes ao Claude o que tens na cozinha, as restrições alimentares e o que gostas e não gostas. O plugin:
+Depois de ligares as tuas contas, pedes ao Claude em linguagem normal e ele trata do resto:
 
-1. cria o teu perfil, com uma pergunta de cada vez (skill `perfil`);
-2. cria as receitas da semana e junta tudo numa lista de compras com as quantidades somadas (skill `receitas-semana`);
-3. procura cada item nos três supermercados, compara os preços por kg ou litro e diz onde o cesto fica mais barato (skill `cesto-mais-barato`);
-4. se quiseres, põe os produtos no carrinho do site.
+- **Procurar produtos** nos três supermercados, com o preço, o preço por quilo ou litro e, quando o site o mostra, a marca.
+- **Pôr e tirar produtos do carrinho** da tua conta, mudar quantidades e mostrar o que lá está.
+- **Fazer uma lista inteira de uma vez**, por exemplo "põe no meu carrinho do Auchan 2 pacotes de leite meio gordo, 1 kg de arroz e uma dúzia de ovos".
 
 O plugin nunca encomenda nem paga. A encomenda e o pagamento ficam sempre do teu lado, no site do supermercado.
 
-Exemplo de pedido: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês."
+Exemplos de pedidos:
+
+- "Procura frango nos três supermercados e mostra-me os preços."
+- "O que tenho no carrinho do Pingo Doce?"
+- "Tira o arroz do carrinho do Auchan e põe 2 pacotes de massa."
+
+### Extras: skills opcionais
+
+O plugin traz também três skills que usam estas ligações, para quem quiser mais ajuda:
+
+- `perfil`: uma entrevista curta, uma pergunta de cada vez, sobre o que tens na cozinha, as restrições e os teus gostos.
+- `receitas-semana`: cria as refeições da semana e junta tudo numa lista de compras com as quantidades somadas.
+- `cesto-mais-barato`: procura cada item da lista nos três supermercados, compara os preços e diz onde o cesto fica mais barato.
+
+Exemplo: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês."
 
 ## Instalação no Windows 11
 
@@ -39,13 +52,13 @@ Passos:
 3. Fecha e volta a abrir o Claude Code.
 4. Escreve `/mcp`. Deves ver três servidores: `continente`, `pingo-doce` e `auchan`. A primeira vez que cada um arranca demora um pouco, porque o `npx` descarrega o pacote.
 5. Na primeira vez abre-se o Bloco de Notas com o ficheiro de credenciais. Preenche o email e a palavra-passe do Auchan e do Continente (e, se quiseres, o número do Pingo Doce) se quiseres usar o carrinho (podes deixar em branco e voltar mais tarde), guarda com Ctrl+S e fecha.
-6. Começa por escrever: "Faz o meu perfil".
+6. Começa por pedir, por exemplo: "Procura leite meio gordo no Auchan". Para as skills extra, escreve "Faz o meu perfil".
 
 A pesquisa de produtos funciona sem conta em nenhum dos três supermercados. Não precisas de instalar mais nada para o Pingo Doce e o Auchan.
 
 ## Instalar só os servidores, sem o plugin
 
-Se não queres o plugin, podes ligar os três servidores MCP diretamente ao teu cliente. Ficas sem as skills (`perfil`, `receitas-semana`, `cesto-mais-barato`) e sem o histórico, mas podes pedir ao Claude coisas como "procura leite meio gordo nos três supermercados e diz-me onde é mais barato". O login funciona da mesma forma.
+Se não queres o plugin, podes ligar os três servidores MCP diretamente ao teu cliente. Ficas sem as skills (`perfil`, `receitas-semana`, `cesto-mais-barato`) e sem o histórico, mas podes pedir ao Claude coisas como "procura leite meio gordo nos três supermercados e põe 2 no meu carrinho do Auchan". O login funciona da mesma forma.
 
 **Claude Code.** No PowerShell, uma vez (o `--scope user` serve para todas as pastas):
 
@@ -113,7 +126,7 @@ As palavras-passe e as cookies nunca aparecem nas respostas das ferramentas nem 
 - Pode deixar de funcionar a qualquer momento se os sites mudarem. Quando a leitura falha, a ferramenta diz o que falhou e nunca inventa um preço.
 - Os ficheiros `robots.txt` dos três sites pedem que as páginas de pesquisa não sejam lidas por programas automáticos. O projeto faz poucos pedidos (no máximo 1 por segundo a cada site), identifica-se com um user-agent próprio e guarda os resultados em cache durante 6 horas. Usa-o por tua conta e risco, para uso pessoal, e respeita os termos dos sites.
 - A pesquisa não mostra a disponibilidade dos produtos. As promoções só aparecem no Pingo Doce. O Continente não indica a marca nem o tamanho.
-- Confirma sempre o produto e o preço no site antes de comprar. As equivalências entre marcas e tamanhos são sugestões.
+- Confirma sempre o produto e o preço no site antes de comprar. As equivalências entre marcas e tamanhos que as skills sugerem são só sugestões.
 
 ## Créditos
 

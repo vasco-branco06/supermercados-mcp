@@ -2,7 +2,7 @@
   "name": "supermercados-mcp",
   "version": "0.3.0",
   "private": true,
-  "description": "Plugin do Claude Code: compara cestos entre Continente, Pingo Doce e Auchan.",
+  "description": "Plugin do Claude Code: faz as compras do supermercado pelo Claude (Continente, Pingo Doce e Auchan).",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"

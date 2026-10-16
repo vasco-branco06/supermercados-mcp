@@ -1,18 +1,20 @@
 {
   "name": "supermercados-mcp",
   "version": "0.3.0",
-  "description": "Receitas da semana, lista de compras e o cesto mais barato entre Continente, Pingo Doce e Auchan.",
+  "description": "Faz as compras do supermercado pelo Claude: procura produtos e põe-nos no carrinho do Continente, do Pingo Doce e do Auchan. Inclui skills opcionais de receitas e de comparação de preços.",
   "author": {
     "name": "Vasco Branco"
   },
   "license": "MIT",
   "keywords": [
     "supermercado",
+    "compras",
+    "carrinho",
     "continente",
     "pingo-doce",
     "auchan",
     "receitas",
-    "lista-de-compras"
+    "comparacao-de-precos"
   ],
   "homepage": "https://github.com/vasco-branco06/supermercados-mcp",
   "repository": "https://github.com/vasco-branco06/supermercados-mcp"

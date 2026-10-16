@@ -7,10 +7,10 @@
     {
       "name": "supermercados-mcp",
       "source": "./",
-      "description": "Receitas da semana, lista de compras e o cesto mais barato entre Continente, Pingo Doce e Auchan."
+      "description": "Faz as compras do supermercado pelo Claude: procura produtos e põe-nos no carrinho do Continente, do Pingo Doce e do Auchan. Inclui skills opcionais de receitas e de comparação de preços."
     }
   ],
   "metadata": {
-    "description": "Plugin do Claude Code para planear refeições e comparar o preço do cesto entre Continente, Pingo Doce e Auchan."
+    "description": "Liga o Claude ao Continente, ao Pingo Doce e ao Auchan para fazeres as compras do supermercado."
   }
 }
