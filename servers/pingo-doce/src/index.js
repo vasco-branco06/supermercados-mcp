@@ -5,7 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { normalizePingoDoce } from './shared.js';
-import { resolveStatePaths } from './paths.js';
+import { loadPhone, resolveStatePaths } from './paths.js';
 import { createQueue, createThrottle, validateToolInput } from './reliability.js';
 import { createSearcher } from './search.js';
 import { createCart } from './cart.js';
@@ -63,7 +63,7 @@ const CART_TOOLS = [
 const LOGIN_TOOLS = [
   {
     name: 'login',
-    description: 'Connect your Pingo Doce account. Opens a browser window on the pingodoce.pt login page; the person logs in there and the window closes. The password is never seen or stored. Cart tools call this automatically when there is no session.',
+    description: 'Connect your Pingo Doce account. Opens a browser window on the pingodoce.pt login page. Pingo Doce has no password: the person types the code that arrives by SMS or email (if PINGODOCE_PHONE is set, the phone number is already filled in and the first step already sent), then the window closes. Nothing secret is seen or stored. Cart tools call this automatically when there is no session.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -88,6 +88,7 @@ export class PingoDoceServer {
     this.search = createSearcher({ version: VERSION, cacheDir: paths.cacheDir, throttle: this.throttle, fetchImpl, now });
     this.session = session ?? createSession({
       cookieFile: paths.cookieFile,
+      phone: loadPhone(env),
       throttle: this.throttle,
       version: VERSION,
       ...(loadPlaywright ? { loadPlaywright } : {}),

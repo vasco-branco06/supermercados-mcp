@@ -29,7 +29,7 @@ Precisa do Node.js 20.18.1 ou mais recente e de um cliente MCP, por exemplo o Cl
 }
 ```
 
-A pesquisa funciona logo, sem conta. Para o carrinho não crias nada: quando o assistente precisar dele, abre-se uma janela do Edge ou do Chrome na página de login do Pingo Doce. Entras tu, a janela fecha e ficas ligado. A palavra-passe nunca passa pelo servidor nem fica guardada: só a sessão, no teu computador (`%USERPROFILE%\.pingodoce-mcp\cookies.json`). Se aparecer um CAPTCHA, resolves tu na janela.
+A pesquisa funciona logo, sem conta. O Pingo Doce não tem palavra-passe: cada login pede um código novo, por SMS ou por email, por isso não dá para entrar sozinho. Para o carrinho não crias nada: quando o assistente precisar dele, abre-se uma janela do Edge ou do Chrome na página de login do Pingo Doce. Entras tu, a janela fecha e ficas ligado. Se quiseres poupar o primeiro passo, escreve o teu número (9 dígitos) numa linha `PINGODOCE_PHONE=912345678` em `~/.supermercados-mcp/credentials.env` (o ficheiro que o plugin supermercados-mcp cria e abre sozinho) ou em `~/.pingodoce-mcp/credentials.env`: a janela abre com o número preenchido e o código pedido, e só escreves o código. A palavra-passe nunca passa pelo servidor nem fica guardada: só a sessão, no teu computador (`%USERPROFILE%\.pingodoce-mcp\cookies.json`). Se aparecer um CAPTCHA, resolves tu na janela.
 
 ## Usar
 

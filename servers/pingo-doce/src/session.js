@@ -41,6 +41,7 @@ function readState(path) {
 // for inactivity, and anything the site renews is saved for next time.
 export function createSession({
   cookieFile,
+  phone = null,
   throttle,
   version,
   log = console.error,
@@ -102,6 +103,14 @@ export function createSession({
       log('[auth] Abri uma janela do browser: faz o login no Pingo Doce.');
       await throttle(() => page.goto(actionUrl(ACTIONS.login), { waitUntil: 'domcontentloaded', timeout: 30000 }));
       await page.locator('#onetrust-accept-btn-handler').click({ timeout: 3000 }).catch(() => {});
+      if (phone) {
+        // Saves the person the first step: the number is filled in and the code is requested. They type the code.
+        try {
+          await page.locator('input[name="dwfrm_profile_customer_phone"]').first().fill(phone, { timeout: 8000 });
+          await page.locator('#loginBtnSMS, [name="loginBtnSMS"]').first().click({ timeout: 5000 });
+          log('[auth] Número preenchido: escreve o código que recebeste.');
+        } catch { /* the person fills the number in by hand */ }
+      }
       const deadline = Date.now() + loginTimeoutMs;
       while (Date.now() < deadline) {
         if (await Promise.race([closed, sleep(pollMs).then(() => 'tick')]) === 'closed') {

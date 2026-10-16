@@ -4,6 +4,7 @@
 - **"o site recusou o pedido (HTTP 403)" ou "(HTTP 429)"**: o site bloqueou os pedidos. Espera algum tempo antes de tentar de novo. O servidor não contorna bloqueios.
 - **"desafio anti-robô (CAPTCHA)"**: igual ao anterior. Espera e tenta mais tarde. Se o CAPTCHA aparecer na janela de login, resolve-o tu.
 - **"sem ligação ao site"**: verifica a internet.
+- **A janela abre sem o número preenchido**: o número tem de estar numa linha `PINGODOCE_PHONE=912345678` (9 dígitos, sem aspas) em `~/.supermercados-mcp/credentials.env` ou em `~/.pingodoce-mcp/credentials.env`. Se o Pingo Doce mudar a página, o número deixa de se preencher sozinho e escreves tu; o login continua a funcionar.
 - **A janela de login não abre**: o servidor usa o Microsoft Edge ou o Google Chrome que já tens. Se não tiver nenhum, instala um deles ou corre `npx playwright install chromium`. Depois pede de novo o carrinho ou usa a ferramenta `login`.
 - **"a janela de login foi fechada antes de o login terminar"**: fechaste a janela antes de entrares. Pede o carrinho outra vez e faz o login na janela nova.
 - **"o login não terminou em 5 minutos"**: a janela ficou aberta sem login. Tenta de novo.

@@ -20,7 +20,7 @@ const response = (status, json = null) => ({ status: () => status, json: async (
 function fakePlaywright({ loggedIn = () => true, missingChannels = [], windowClosesAfter = Infinity, afterLoginUrl = 'https://www.pingodoce.pt/home/' } = {}) {
   const launches = [];
   const apis = [];
-  const state = { polls: 0, urlCalls: 0, windowClosed: 0, requests: [] };
+  const state = { polls: 0, urlCalls: 0, windowClosed: 0, requests: [], filled: [], clicked: [], failFill: false };
   const requester = () => ({
     get: async (url) => {
       state.requests.push(url);
@@ -50,7 +50,14 @@ function fakePlaywright({ loggedIn = () => true, missingChannels = [], windowClo
               storageState: async () => STATE,
               newPage: async () => ({
                 goto: async () => {},
-                locator: () => ({ click: async () => {} }),
+                locator: (selector) => {
+                  const handle = {
+                    first: () => handle,
+                    fill: async (value) => { if (state.failFill) throw new Error('no such field'); state.filled.push([selector, value]); },
+                    click: async () => { state.clicked.push(selector); },
+                  };
+                  return handle;
+                },
                 url: () => (state.urlCalls++ >= 1 ? afterLoginUrl : 'https://www.pingodoce.pt/on/demandware.store/Sites-pingo-doce-Site/default/Login-Show'),
               }),
             }),
@@ -220,4 +227,28 @@ test('an old cookies-only file is still read', async (t) => {
   const session = createSession({ cookieFile, loadPlaywright: fake.load, ...quick });
   assert.equal(await session.login(), 'saved');
   assert.equal(fake.launches.length, 0);
+});
+
+test('with a phone number the window opens with it filled in and the code requested', async (t) => {
+  const fake = fakePlaywright();
+  const session = createSession({ cookieFile: tempFile(t), phone: '912345678', loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'window');
+  assert.deepEqual(fake.state.filled, [['input[name="dwfrm_profile_customer_phone"]', '912345678']]);
+  assert.ok(fake.state.clicked.some((selector) => selector.includes('loginBtnSMS')), 'the Avançar button was pressed');
+  assert.ok(!JSON.stringify(fake.state).includes('password'), 'there is no password anywhere');
+});
+
+test('without a phone number the window is left alone for the person', async (t) => {
+  const fake = fakePlaywright();
+  const session = createSession({ cookieFile: tempFile(t), loadPlaywright: fake.load, ...quick });
+  await session.login();
+  assert.deepEqual(fake.state.filled, []);
+  assert.ok(!fake.state.clicked.some((selector) => selector.includes('loginBtnSMS')));
+});
+
+test('if the phone field cannot be filled the login still goes on by hand', async (t) => {
+  const fake = fakePlaywright();
+  fake.state.failFill = true;
+  const session = createSession({ cookieFile: tempFile(t), phone: '912345678', loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'window');
 });

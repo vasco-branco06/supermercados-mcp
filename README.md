@@ -38,7 +38,7 @@ Passos:
 
 3. Fecha e volta a abrir o Claude Code.
 4. Escreve `/mcp`. Deves ver três servidores: `continente`, `pingo-doce` e `auchan`. A primeira vez que cada um arranca demora um pouco, porque o `npx` descarrega o pacote.
-5. Na primeira vez abre-se o Bloco de Notas com o ficheiro de credenciais. Preenche o email e a palavra-passe do Auchan e do Continente se quiseres usar o carrinho (podes deixar em branco e voltar mais tarde), guarda com Ctrl+S e fecha.
+5. Na primeira vez abre-se o Bloco de Notas com o ficheiro de credenciais. Preenche o email e a palavra-passe do Auchan e do Continente (e, se quiseres, o número do Pingo Doce) se quiseres usar o carrinho (podes deixar em branco e voltar mais tarde), guarda com Ctrl+S e fecha.
 6. Começa por escrever: "Faz o meu perfil".
 
 A pesquisa de produtos funciona sem conta em nenhum dos três supermercados. Não precisas de instalar mais nada para o Pingo Doce e o Auchan.
@@ -79,7 +79,7 @@ Sem o plugin, o ficheiro de credenciais não se abre sozinho. Para o carrinho do
 A pesquisa e a comparação de preços funcionam sem conta. Para o Claude pôr produtos no carrinho, o plugin entra na tua conta de cada supermercado:
 
 - **Auchan e Continente:** na primeira vez que o plugin arranca, abre-se o Bloco de Notas com o ficheiro `%USERPROFILE%\.supermercados-mcp\credentials.env` já com as linhas `AUCHAN_EMAIL`, `AUCHAN_PASSWORD`, `CONTINENTE_EMAIL` e `CONTINENTE_PASSWORD`. Preenche as dos supermercados que usas, guarda com Ctrl+S e fecha. O plugin entra sozinho, em segundo plano e sem janela, e volta a entrar sempre que o supermercado terminar a sessão, por isso não tens de fazer nada outra vez. Para abrir o ficheiro de novo, pede ao Claude "abre o ficheiro de credenciais" (skill `credenciais`).
-- **Pingo Doce:** entra com o número de telemóvel e um código que chega por SMS, por isso não há palavra-passe para guardar. Quando pedires o carrinho, abre-se uma janela do browser (o Edge ou o Chrome que já tens) e entras tu. A sessão fica guardada e dura enquanto o Pingo Doce a mantiver; quando expirar, a janela abre-se outra vez.
+- **Pingo Doce:** não tem palavra-passe. Entra-se com um código novo que chega por SMS ou por email, por isso não dá para entrar sozinho. Quando pedires o carrinho, abre-se uma janela do browser (o Edge ou o Chrome que já tens) e entras tu. Se escreveres o teu número no ficheiro (`PINGODOCE_PHONE`, 9 dígitos), a janela abre já com o número preenchido e o código pedido, e só tens de escrever o código. A sessão fica guardada e dura enquanto o Pingo Doce a mantiver; quando expirar, a janela abre-se outra vez.
 
 No Auchan, o carrinho só aceita produtos depois de escolheres uma vez, no site, entrega em casa ou levantamento (com o código postal); essa escolha fica guardada na tua conta. O Auchan só deixa encomendar a partir de 20 €. Enquanto o Claude Code está aberto, o plugin faz um pedido leve de 10 em 10 minutos para o supermercado não fechar a sessão por inatividade. Se aparecer um CAPTCHA no login automático, o plugin pára e diz-te; não o contorna. Para desligar uma conta, pede ao Claude para terminar a sessão (ferramenta `logout`).
 
@@ -97,11 +97,11 @@ Nada sai do teu computador, exceto os pedidos aos sites dos supermercados e a co
 |---|---|
 | O teu perfil | `%USERPROFILE%\.supermercados-mcp\perfil.md` |
 | Listas confirmadas, produtos escolhidos e preços vistos | `%USERPROFILE%\.supermercados-mcp\historico.sqlite` |
-| Email e palavra-passe do Auchan e do Continente, só os que preencheres | `%USERPROFILE%\.supermercados-mcp\credentials.env` |
+| Email e palavra-passe do Auchan e do Continente e o número do Pingo Doce, só o que preencheres | `%USERPROFILE%\.supermercados-mcp\credentials.env` |
 | Resultados de pesquisa em cache (6 horas) | `%USERPROFILE%\.pingodoce-mcp\cache` e `%USERPROFILE%\.auchan-mcp\cache` |
 | Sessão do carrinho do Pingo Doce e do Auchan (cookies) | `%USERPROFILE%\.pingodoce-mcp\cookies.json` e `%USERPROFILE%\.auchan-mcp\cookies.json` |
 
-As palavras-passe ficam em texto simples nesse ficheiro, dentro da tua pasta de utilizador, como já acontecia no servidor do Continente. Não o partilhes, não o ponhas num backup público e não o mostres em capturas de ecrã. O ficheiro nunca é enviado para lado nenhum: só é lido para preencher o formulário de login do supermercado. O Pingo Doce não guarda palavra-passe nenhuma.
+As palavras-passe ficam em texto simples nesse ficheiro, dentro da tua pasta de utilizador, como já acontecia no servidor do Continente. Não o partilhes, não o ponhas num backup público e não o mostres em capturas de ecrã. O ficheiro nunca é enviado para lado nenhum: só é lido para preencher o formulário de login do supermercado. O Pingo Doce não tem palavra-passe: só podes guardar o número de telemóvel, para a janela vir preenchida.
 
 Para apagar tudo, no PowerShell:
 

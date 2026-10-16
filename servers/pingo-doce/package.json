@@ -1,6 +1,6 @@
 {
   "name": "pingo-doce-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "MCP server for Pingo Doce (pingodoce.pt): search products and manage your cart.",
   "type": "module",
   "main": "dist/index.js",

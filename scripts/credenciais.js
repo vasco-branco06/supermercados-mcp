@@ -21,9 +21,11 @@ CONTINENTE_PASSWORD=
 AUCHAN_EMAIL=
 AUCHAN_PASSWORD=
 
-# Pingo Doce: entra com o número de telemóvel e um código que chega por SMS, por isso
-# não há email nem palavra-passe para guardar aqui. Quando pedires o carrinho do
-# Pingo Doce, abre-se uma janela do browser para entrares tu.
+# Pingo Doce
+# Não tem palavra-passe: entra-se com um código novo que chega por SMS ou por email, por isso
+# não dá para entrar sozinho. Se escreveres aqui o teu número (9 dígitos, sem espaços), a janela
+# de login abre já com o número preenchido e o código pedido, e só tens de escrever o código.
+PINGODOCE_PHONE=
 `;
 
 export function credentialsPath(env = process.env) {
@@ -65,7 +67,7 @@ export function run({ argv = process.argv.slice(2), env = process.env, write = (
   const opened = env.SUPERMERCADOS_MCP_NO_EDITOR === '1' ? false : open(file);
   // The text of a SessionStart hook reaches Claude, which passes it on to the person.
   write(opened
-    ? `O plugin supermercados-mcp abriu o Bloco de Notas com o ficheiro de credenciais (${file}). Diz à pessoa para preencher o email e a palavra-passe dos supermercados onde quer usar o carrinho, guardar com Ctrl+S e fechar. O Pingo Doce não precisa de nada aí: entra por uma janela, com um código SMS. A pesquisa e a comparação de preços funcionam sem este ficheiro.\n`
+    ? `O plugin supermercados-mcp abriu o Bloco de Notas com o ficheiro de credenciais (${file}). Diz à pessoa para preencher o email e a palavra-passe dos supermercados onde quer usar o carrinho, guardar com Ctrl+S e fechar. No Pingo Doce, só se quiser, pode escrever o número de telemóvel (PINGODOCE_PHONE): não há palavra-passe, entra por uma janela com um código que chega por SMS ou email, e com o número a janela abre já preenchida. A pesquisa e a comparação de preços funcionam sem este ficheiro.\n`
     : `O ficheiro de credenciais do plugin supermercados-mcp está em ${file}. Se a pessoa quiser usar o carrinho, tem de o abrir e preencher o email e a palavra-passe do Continente e do Auchan.\n`);
   return { file, created, opened };
 }

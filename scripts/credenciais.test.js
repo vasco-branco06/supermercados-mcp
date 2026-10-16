@@ -12,12 +12,12 @@ function tempFile(t) {
   return join(dir, 'pasta', 'credentials.env');
 }
 
-test('the template has an email and a password line for Continente and Auchan, and explains Pingo Doce', () => {
-  for (const key of ['CONTINENTE_EMAIL=', 'CONTINENTE_PASSWORD=', 'AUCHAN_EMAIL=', 'AUCHAN_PASSWORD=']) {
+test('the template has an email and a password line for Continente and Auchan, a phone line for Pingo Doce, and explains why', () => {
+  for (const key of ['CONTINENTE_EMAIL=', 'CONTINENTE_PASSWORD=', 'AUCHAN_EMAIL=', 'AUCHAN_PASSWORD=', 'PINGODOCE_PHONE=']) {
     assert.ok(TEMPLATE.split('\n').includes(key), key);
   }
-  assert.match(TEMPLATE, /Pingo Doce: entra com o número de telemóvel/);
-  assert.ok(!/PINGODOCE_/.test(TEMPLATE), 'no password line for a login that has no password');
+  assert.match(TEMPLATE, /Não tem palavra-passe/);
+  assert.ok(!/PINGODOCE_PASSWORD/.test(TEMPLATE), 'no password line for a login that has no password');
 });
 
 test('ensureTemplate creates the file once and never overwrites it', (t) => {
@@ -40,7 +40,7 @@ test('the first run creates the file and tells Claude what to say; later runs ar
   assert.ok(existsSync(file));
   assert.ok(out.includes(file), 'it names the file');
   assert.match(out, /abriu o Bloco de Notas/);
-  assert.match(out, /Pingo Doce não precisa de nada aí/);
+  assert.match(out, /No Pingo Doce, só se quiser, pode escrever o número de telemóvel/);
 
   const quiet = { SUPERMERCADOS_MCP_CREDENTIALS: tempFile(t), SUPERMERCADOS_MCP_NO_EDITOR: '1' };
   const noEditor = run({ argv: [], env: quiet, write: () => {}, open: () => { throw new Error('must not open'); } });
