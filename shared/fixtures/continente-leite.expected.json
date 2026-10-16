@@ -1,0 +1,50 @@
+[
+  {
+    "store": "continente",
+    "product_id": "leite-uht-meio-gordo-mimosa-4421406",
+    "name": "Leite UHT Meio Gordo Mimosa",
+    "brand": null,
+    "price": 5.34,
+    "currency": "EUR",
+    "size": null,
+    "unit_price": 0.89,
+    "unit": "l",
+    "promo": null,
+    "minimum": null,
+    "available": null,
+    "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-mimosa-4421406.html",
+    "fetched_at": "2026-10-16T12:00:00.000Z"
+  },
+  {
+    "store": "continente",
+    "product_id": "leite-uht-meio-gordo-continente-8504295",
+    "name": "Leite UHT Meio Gordo Continente",
+    "brand": null,
+    "price": 5.1,
+    "currency": "EUR",
+    "size": null,
+    "unit_price": 0.85,
+    "unit": "l",
+    "promo": null,
+    "minimum": null,
+    "available": null,
+    "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-continente-8504295.html",
+    "fetched_at": "2026-10-16T12:00:00.000Z"
+  },
+  {
+    "store": "continente",
+    "product_id": "leite-uht-magro-mimosa-4421384",
+    "name": "Leite UHT Magro Mimosa",
+    "brand": null,
+    "price": 5.34,
+    "currency": "EUR",
+    "size": null,
+    "unit_price": 0.89,
+    "unit": "l",
+    "promo": null,
+    "minimum": null,
+    "available": null,
+    "url": "https://www.continente.pt/produto/leite-uht-magro-mimosa-4421384.html",
+    "fetched_at": "2026-10-16T12:00:00.000Z"
+  }
+]

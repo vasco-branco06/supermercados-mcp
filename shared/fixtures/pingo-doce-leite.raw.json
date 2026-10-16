@@ -1,0 +1,32 @@
+[
+  {
+    "product_id": "48150",
+    "name": "Leite UHT Meio Gordo",
+    "brand": "Pingo Doce",
+    "price": 0.85,
+    "unit_text": "1 L | 0,85 €/L",
+    "original_price": null,
+    "promo_label": null,
+    "url": "https://www.pingodoce.pt/home/produtos/leite-e-bebidas-vegetais/leite/leite-meio-gordo-e-gordo%E2%80%8B/leite-uht-meio-gordo-pingo-doce-48150.html"
+  },
+  {
+    "product_id": "48149",
+    "name": "Leite UHT Magro",
+    "brand": "Pingo Doce",
+    "price": 0.85,
+    "unit_text": "1 L | 0,85 €/L",
+    "original_price": null,
+    "promo_label": null,
+    "url": "https://www.pingodoce.pt/home/produtos/leite-e-bebidas-vegetais/leite/leite-magro%E2%80%8B/leite-uht-magro-pingo-doce-48149.html"
+  },
+  {
+    "product_id": "41043",
+    "name": "Leite UHT Meio Gordo",
+    "brand": "Mimosa",
+    "price": 0.89,
+    "unit_text": "1 L | 0,89 €/L",
+    "original_price": 1,
+    "promo_label": "Promoção até 19/10",
+    "url": "https://www.pingodoce.pt/home/produtos/leite-e-bebidas-vegetais/leite/leite-meio-gordo-e-gordo%E2%80%8B/leite-uht-meio-gordo-mimosa-41043.html"
+  }
+]

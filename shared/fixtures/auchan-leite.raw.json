@@ -1,0 +1,29 @@
+[
+  {
+    "product_id": "3010403",
+    "name": "LEITE UHT AUCHAN MEIO GORDO 1L",
+    "brand": "AUCHAN",
+    "price": 0.85,
+    "unit_text": "0.85 €/Lt",
+    "available": true,
+    "url": "https://www.auchan.pt/pt/alimentacao/produtos-lacteos/leites/leite-uht/leite-uht-auchan-meio-gordo-1l/3010403.html"
+  },
+  {
+    "product_id": "11885",
+    "name": "LEITE MIMOSA UHT MEIO GORDO 1L",
+    "brand": "MIMOSA",
+    "price": 0.89,
+    "unit_text": "0.89 €/Lt",
+    "available": true,
+    "url": "https://www.auchan.pt/pt/alimentacao/produtos-lacteos/leites/leite-uht/leite-mimosa-uht-meio-gordo-1l/11885.html"
+  },
+  {
+    "product_id": "3704143",
+    "name": "LEITE UHT GRESSO MAGRO 1L",
+    "brand": "GRESSO",
+    "price": 0.86,
+    "unit_text": "0.86 €/Lt",
+    "available": false,
+    "url": "https://www.auchan.pt/pt/alimentacao/produtos-lacteos/leites/leite-uht/leite-uht-gresso-magro-1l/3704143.html"
+  }
+]

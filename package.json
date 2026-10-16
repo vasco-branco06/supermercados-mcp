@@ -1,0 +1,17 @@
+{
+  "name": "supermercados-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plugin do Claude Code: compara cestos entre Continente, Pingo Doce e Auchan.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "name": "Leite UHT Meio Gordo Mimosa",
+    "price": 5.34,
+    "currency": "€",
+    "product_id": "leite-uht-meio-gordo-mimosa-4421406",
+    "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-mimosa-4421406.html",
+    "unit": "0,89€/lt",
+    "minimum": null
+  },
+  {
+    "name": "Leite UHT Meio Gordo Continente",
+    "price": 5.1,
+    "currency": "€",
+    "product_id": "leite-uht-meio-gordo-continente-8504295",
+    "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-continente-8504295.html",
+    "unit": "0,85€/lt",
+    "minimum": null
+  },
+  {
+    "name": "Leite UHT Magro Mimosa",
+    "price": 5.34,
+    "currency": "€",
+    "product_id": "leite-uht-magro-mimosa-4421384",
+    "url": "https://www.continente.pt/produto/leite-uht-magro-mimosa-4421384.html",
+    "unit": "0,89€/lt",
+    "minimum": null
+  }
+]

@@ -1,0 +1,76 @@
+# Contrato dos servidores de supermercado
+
+Vale para os três servidores: `continente-mcp` (do David Marques, não alterado), `pingo-doce-mcp` e `auchan-mcp`. Os dois últimos imitam o do David em nomes e parâmetros. Este contrato só se muda na sessão principal.
+
+## Ferramentas
+
+| Ferramenta | Parâmetros | Quando existe |
+|---|---|---|
+| `search_products` | `query` (texto, 1 a 250 caracteres, sem caracteres de controlo), `limit` (inteiro 1 a 50, por omissão 10) | sempre, sem login |
+| `get_cart` | nenhum | só com credenciais |
+| `add_to_cart` | `product_id` (texto), `quantity` (número maior que 0, por omissão 1) | só com credenciais |
+| `update_cart_item` | `product_id`, `quantity` (0 remove a linha) | só com credenciais |
+| `close_session` | nenhum | sempre |
+
+Não existe nenhuma ferramenta para finalizar a encomenda ou pagar, em nenhum dos três. Favoritos e histórico (`get_favorites`, `refresh_favorites`, `get_order_history`, `get_most_bought`) são só do Continente e ficam fora da v1 nos outros dois.
+
+As ferramentas do carrinho só são registadas se existir o ficheiro de credenciais do servidor:
+- Pingo Doce: `~/.pingodoce-mcp/credentials.env` com `PINGODOCE_EMAIL` e `PINGODOCE_PASSWORD`.
+- Auchan: `~/.auchan-mcp/credentials.env` com `AUCHAN_EMAIL` e `AUCHAN_PASSWORD`.
+- O estado e as cookies ficam na mesma pasta (`cookies.json`). Nunca em logs, nem em respostas, nem no git.
+- O Continente regista as ferramentas do carrinho sempre; a skill trata essa diferença.
+
+## Formato do produto
+
+Cada produto devolvido pela pesquisa tem exatamente estes campos (schema em `shared/schema.js`). O que não se sabe fica `null`; nunca se inventa.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `store` | `continente`, `pingo-doce` ou `auchan` | |
+| `product_id` | texto | o que `add_to_cart` aceita |
+| `name` | texto | tal como o site mostra |
+| `brand` | texto ou null | |
+| `price` | número maior que 0 | em euros, preço que o cliente paga agora |
+| `currency` | `EUR` | o do David devolve `€`; o normalizador converte |
+| `size` | texto ou null | por exemplo `1 L` (só o Pingo Doce o mostra à parte) |
+| `unit_price` | número ou null | euros por `unit`; vem com `unit` ou ambos null |
+| `unit` | `kg`, `l`, `un` ou null | outras unidades (por exemplo 100 g) ficam null |
+| `promo` | `{ label, original_price }` ou null | `original_price` pode ser null |
+| `minimum` | texto ou null | por exemplo a quantidade mínima de produtos ao peso |
+| `available` | verdadeiro, falso ou null | |
+| `url` | endereço absoluto | |
+| `fetched_at` | data e hora ISO | |
+
+O `unit` do David (texto como `0,89€/lt`) passa a `unit_price` mais `unit`.
+
+Limites do que cada site mostra na pesquisa (verificado em 2026-10-16):
+- Continente: sem marca, tamanho, promoção nem disponibilidade (null).
+- Pingo Doce: promoção visível como texto e preço antigo; sem disponibilidade (null).
+- Auchan: disponibilidade visível; a promoção só carrega depois por outro pedido, por isso fica null.
+
+## Normalização
+
+- `normalizeContinente(raw, fetched_at)`: `raw` é o objeto que o código do David devolve por produto (`name, price, currency, product_id, url, unit, minimum`).
+- `normalizePingoDoce(raw, fetched_at)`: `raw = { product_id, name, brand, price, unit_text, original_price, promo_label, url }`.
+- `normalizeAuchan(raw, fetched_at)`: `raw = { product_id, name, brand, price, unit_text, available, url }`.
+
+Cada uma valida com o schema e falha com erro se os dados não servirem. Um preço que não passe nunca chega ao histórico.
+
+## Fixtures e testes de contrato
+
+`shared/fixtures/` tem, por supermercado:
+- `*-leite.raw.json`: o que o parser do servidor tem de extrair.
+- `*-leite.expected.json`: o que o normalizador tem de devolver.
+- `*-leite.html` (só Pingo Doce e Auchan): excerto real da pesquisa "leite" de 2026-10-16, sem scripts.
+
+O servidor de cada sessão tem de provar, num teste sem internet, que `parse(html)` dá exatamente o `raw.json`. Se o site mudar e o parse falhar, a ferramenta devolve um erro que diz o que falhou. Nunca devolve um preço inventado.
+
+As fixtures do Continente são os objetos do David reconstruídos a partir da saída real de 2026-10-16. O endereço `url` segue o padrão `https://www.continente.pt/produto/<id>.html` visto nos resultados.
+
+## Regras de acesso aos sites
+
+- No máximo 1 pedido por segundo a cada site.
+- Cache dos resultados de pesquisa durante algumas horas.
+- User-agent honesto que identifica o projeto (`supermercados-mcp/<versão>`).
+- Sem contornar CAPTCHA nem proteção anti-bot: se aparecer, o servidor devolve erro.
+- Os `robots.txt` dos três sites pedem para não aceder à pesquisa automaticamente. O projeto segue por decisão do dono, assumindo o risco de bloqueio, e o README tem de o dizer.
