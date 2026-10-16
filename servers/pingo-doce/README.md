@@ -2,7 +2,7 @@
 
 Deixa o teu assistente de IA pesquisar produtos no pingodoce.pt e encher o carrinho por ti.
 
-Faz parte do plugin [supermercados-mcp](https://github.com/Vascobranco2509/supermercados-mcp) e segue os nomes e o estilo do [continente-mcp](https://github.com/davidmarqu3s/continente-mcp) de David Marques.
+Faz parte do plugin [supermercados-mcp](https://github.com/vasco-branco06/supermercados-mcp) e segue os nomes e o estilo do [continente-mcp](https://github.com/davidmarqu3s/continente-mcp) de David Marques.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

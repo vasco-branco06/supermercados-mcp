@@ -35,11 +35,11 @@ Para cada item, chama `search_products` em cada servidor (`continente`, `pingo-d
 
 ## 5. Quando a pessoa confirma
 
-1. Grava a lista e os preços vistos com o script do histórico, que está em `../../scripts/historico.js` a partir da pasta desta skill:
+1. Grava a lista e os preços vistos com o script do histórico, que está em `../../scripts/dist/historico.js` a partir da pasta desta skill:
    - Escreve um ficheiro JSON temporário com `{ "lists": [{ "store": "<supermercado>", "items": [{ "quantity": <n>, "product": <produto> }] }], "seen": [<outros produtos vistos>] }`. Uma entrada em `lists` por supermercado onde a pessoa vai comprar.
    - Os produtos de Pingo Doce e Auchan vão tal como vieram. Os do Continente vão como `{ name, price, currency, product_id, url, unit, minimum, fetched_at }` sem o campo `store`; o script converte-os.
-   - Corre `node "<pasta do plugin>/scripts/historico.js" save <ficheiro.json>`. Se der erro, mostra a mensagem: nesse caso nada foi gravado.
+   - Corre `node "<pasta do plugin>/scripts/dist/historico.js" save <ficheiro.json>`. Se der erro, mostra a mensagem: nesse caso nada foi gravado.
 2. Se o servidor desse supermercado tiver `add_to_cart`, pergunta se a pessoa quer pôr os produtos no carrinho. Só com um sim, adiciona um a um e no fim mostra `get_cart`. Pingo Doce e Auchan só têm carrinho com credenciais; o Continente pede login. Se a ferramenta não existir ou falhar por falta de login, diz que pode comprar no site com a lista.
 3. Lembra que a encomenda e o pagamento se fazem no site, pela pessoa.
 
-Para ver compras anteriores: `node "<pasta do plugin>/scripts/historico.js" history --limit 5`.
+Para ver compras anteriores: `node "<pasta do plugin>/scripts/dist/historico.js" history --limit 5`.

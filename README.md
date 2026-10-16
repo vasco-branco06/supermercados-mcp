@@ -1,0 +1,103 @@
+# supermercados-mcp
+
+Plugin do Claude Code que planeia as refeições da semana e compara o preço do cesto no Continente, no Pingo Doce e no Auchan.
+
+![Demonstração: o Claude cria o plano da semana e compara o cesto nos três supermercados](docs/demo.gif)
+
+[Ver a demonstração em MP4](docs/demo.mp4) (48 segundos)
+
+## O que faz
+
+Dizes ao Claude o que tens na cozinha, as restrições alimentares e o que gostas e não gostas. O plugin:
+
+1. cria o teu perfil, com uma pergunta de cada vez (skill `perfil`);
+2. cria as receitas da semana e junta tudo numa lista de compras com as quantidades somadas (skill `receitas-semana`);
+3. procura cada item nos três supermercados, compara os preços por kg ou litro e diz onde o cesto fica mais barato (skill `cesto-mais-barato`);
+4. se quiseres, põe os produtos no carrinho do site.
+
+O plugin nunca encomenda nem paga. A encomenda e o pagamento ficam sempre do teu lado, no site do supermercado.
+
+Exemplo de pedido: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês." Na demonstração acima, o cesto semanal ficou em 76,94 € no Auchan, 81,34 € no Pingo Doce e 81,81 € no Continente. Os preços mudam todos os dias.
+
+## Instalação no Windows 11
+
+Precisas de:
+- Claude Code instalado;
+- Node.js 22.13 ou superior. Para ver a versão, abre o PowerShell e escreve `node -v`. Se for mais antiga, instala a versão LTS em https://nodejs.org.
+
+Passos:
+
+1. Abre o PowerShell e instala o navegador que o servidor do Continente usa. Só se faz uma vez (descarrega cerca de 110 MB):
+
+   ```powershell
+   npx -y -p continente-mcp playwright install chromium
+   ```
+
+2. No Claude Code, adiciona o plugin:
+
+   ```
+   /plugin marketplace add vasco-branco06/supermercados-mcp
+   /plugin install supermercados-mcp@supermercados-mcp
+   ```
+
+3. Fecha e volta a abrir o Claude Code.
+4. Escreve `/mcp`. Deves ver três servidores: `continente`, `pingo-doce` e `auchan`. A primeira vez que cada um arranca demora um pouco, porque o `npx` descarrega o pacote.
+5. Começa por escrever: "Faz o meu perfil".
+
+A pesquisa de produtos funciona sem conta em nenhum dos três supermercados.
+
+## Carrinho (opcional)
+
+Sem credenciais, o plugin só pesquisa e compara. Para o Claude pôr produtos no carrinho, cria o ficheiro de credenciais de cada supermercado que quiseres usar. Cada ficheiro tem duas linhas e fica só no teu computador.
+
+| Supermercado | Ficheiro (no teu utilizador do Windows) | Conteúdo |
+|---|---|---|
+| Continente | `%USERPROFILE%\.continente\credentials.env` | `CONTINENTE_EMAIL=...` e `CONTINENTE_PASSWORD=...` |
+| Pingo Doce | `%USERPROFILE%\.pingodoce-mcp\credentials.env` | `PINGODOCE_EMAIL=...` e `PINGODOCE_PASSWORD=...` |
+| Auchan | `%USERPROFILE%\.auchan-mcp\credentials.env` | `AUCHAN_EMAIL=...` e `AUCHAN_PASSWORD=...` |
+
+Cria a pasta se não existir, guarda o ficheiro e reinicia o Claude Code. As ferramentas do carrinho (`get_cart`, `add_to_cart`, `update_cart_item`) só aparecem nos servidores do Pingo Doce e do Auchan quando existe o ficheiro. Não existe nenhuma ferramenta para finalizar a encomenda ou pagar.
+
+Aviso: o carrinho do Pingo Doce e do Auchan foi escrito a partir do padrão dos sites e testado só com respostas simuladas. Ainda não foi testado com uma conta real. Se algo falhar, abre um issue com a mensagem de erro (sem a palavra-passe).
+
+## Privacidade
+
+Nada sai do teu computador, exceto os pedidos aos sites dos supermercados e a conversa com o Claude.
+
+| O quê | Onde fica |
+|---|---|
+| O teu perfil | `%USERPROFILE%\.supermercados-mcp\perfil.md` |
+| Listas confirmadas, produtos escolhidos e preços vistos | `%USERPROFILE%\.supermercados-mcp\historico.sqlite` |
+| Resultados de pesquisa em cache (6 horas) | `%USERPROFILE%\.pingodoce-mcp\cache` e `%USERPROFILE%\.auchan-mcp\cache` |
+| Credenciais e sessão do carrinho | nas pastas `.continente`, `.pingodoce-mcp` e `.auchan-mcp` |
+
+Para apagar tudo, no PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force "$env:USERPROFILE\.supermercados-mcp", "$env:USERPROFILE\.pingodoce-mcp", "$env:USERPROFILE\.auchan-mcp", "$env:USERPROFILE\.continente"
+```
+
+Nos servidores do Pingo Doce e do Auchan, as palavras-passe e as cookies nunca aparecem nas respostas das ferramentas nem nos registos.
+
+## Limites e avisos
+
+- Este projeto não tem ligação ao Continente, ao Pingo Doce nem ao Auchan. Os nomes pertencem às respetivas empresas.
+- Pode deixar de funcionar a qualquer momento se os sites mudarem. Quando a leitura falha, a ferramenta diz o que falhou e nunca inventa um preço.
+- Os ficheiros `robots.txt` dos três sites pedem que as páginas de pesquisa não sejam lidas por programas automáticos. O projeto faz poucos pedidos (no máximo 1 por segundo a cada site), identifica-se com um user-agent próprio e guarda os resultados em cache durante 6 horas. Usa-o por tua conta e risco, para uso pessoal, e respeita os termos dos sites.
+- A pesquisa não mostra a disponibilidade dos produtos. As promoções só aparecem no Pingo Doce. O Continente não indica a marca nem o tamanho.
+- Confirma sempre o produto e o preço no site antes de comprar. As equivalências entre marcas e tamanhos são sugestões.
+
+## Créditos
+
+O servidor do Continente é o [continente-mcp](https://github.com/davidmarqu3s/continente-mcp) de David Marques (licença MIT), usado tal como ele o publica e sem alterações. Os servidores do Pingo Doce e do Auchan foram escritos de raiz neste repositório, com o dele como modelo para a estrutura de pastas, os nomes das ferramentas e a forma de guardar a sessão.
+
+## Para quem quer contribuir
+
+- `shared/` tem o schema dos produtos (zod) e o contrato comum dos servidores: [shared/CONTRATO.md](shared/CONTRATO.md).
+- `servers/pingo-doce` e `servers/auchan` são os dois servidores. Cada um tem os seus testes (`npm test` dentro da pasta), que correm sem internet sobre respostas guardadas.
+- `npm test` na raiz corre os testes do contrato. `npm run build:historico` volta a gerar `scripts/dist/historico.js`.
+- Notas do desenvolvimento em `docs/desenvolvimento`.
+
+## Licença
+
+[MIT](LICENSE)

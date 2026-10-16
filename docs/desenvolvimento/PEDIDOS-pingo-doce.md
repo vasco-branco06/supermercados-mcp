@@ -22,7 +22,7 @@ Sem credenciais, o carrinho foi testado só com respostas simuladas. O código u
 
 ## 4. Endereço do repositório no user-agent
 
-O user-agent usa `+https://github.com/Vascobranco2509/supermercados-mcp`, como pede a tarefa. Confirmar na Fase 4; muda-se em `servers/pingo-doce/src/search.js` (função `userAgent`).
+O user-agent usa `+https://github.com/vasco-branco06/supermercados-mcp`, como pede a tarefa. Confirmar na Fase 4; muda-se em `servers/pingo-doce/src/search.js` (função `userAgent`).
 
 ## Issues para o David
 

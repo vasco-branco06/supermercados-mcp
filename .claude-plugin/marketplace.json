@@ -1,0 +1,16 @@
+{
+  "name": "supermercados-mcp",
+  "owner": {
+    "name": "Vasco Branco"
+  },
+  "plugins": [
+    {
+      "name": "supermercados-mcp",
+      "source": "./",
+      "description": "Receitas da semana, lista de compras e o cesto mais barato entre Continente, Pingo Doce e Auchan."
+    }
+  ],
+  "metadata": {
+    "description": "Plugin do Claude Code para planear refeições e comparar o preço do cesto entre Continente, Pingo Doce e Auchan."
+  }
+}

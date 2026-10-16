@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 export const AUCHAN_BASE = 'https://www.auchan.pt';
 export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-export const USER_AGENT = `supermercados-mcp/${VERSION} (auchan-mcp; +https://github.com/Vascobranco2509/supermercados-mcp)`;
+export const USER_AGENT = `supermercados-mcp/${VERSION} (auchan-mcp; +https://github.com/vasco-branco06/supermercados-mcp)`;
 
 const BLOCK_MARKERS = /captcha|cf-challenge|just a moment\.\.\.|_incapsula_|datadome|perimeterx|px-captcha|access denied/i;
 

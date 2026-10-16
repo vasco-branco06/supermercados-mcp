@@ -26,7 +26,7 @@ test('requests the search page with an honest user agent', async () => {
   const result = await searcher(fetch)(' leite meio gordo ');
   assert.equal(fetch.calls[0].url, `${SEARCH_URL}?q=leite%20meio%20gordo`);
   assert.equal(fetch.calls[0].init.headers['User-Agent'],
-    'supermercados-mcp/9.9.9 (pingo-doce-mcp; +https://github.com/Vascobranco2509/supermercados-mcp)');
+    'supermercados-mcp/9.9.9 (pingo-doce-mcp; +https://github.com/vasco-branco06/supermercados-mcp)');
   assert.equal(result.products.length, 3);
   assert.equal(result.fetched_at, '2026-10-16T12:00:00.000Z');
 });

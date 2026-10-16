@@ -8,10 +8,14 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "node --test \"shared/**/*.test.js\""
+    "test": "node --test \"shared/**/*.test.js\"",
+    "build:historico": "esbuild scripts/historico.js --bundle --platform=node --format=esm --target=node22 --external:node:sqlite --outfile=scripts/dist/historico.js"
   },
   "license": "MIT",
   "dependencies": {
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

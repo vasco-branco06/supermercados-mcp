@@ -7,3 +7,4 @@ node_modules/
 *.sqlite
 *.sqlite-journal
 cookies.json
+servers/*/dist/

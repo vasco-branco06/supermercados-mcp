@@ -7,7 +7,7 @@ export const SEARCH_URL = `${PINGO_DOCE_BASE}/on/demandware.store/Sites-pingo-do
 export const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export const userAgent = (version) =>
-  `supermercados-mcp/${version} (pingo-doce-mcp; +https://github.com/Vascobranco2509/supermercados-mcp)`;
+  `supermercados-mcp/${version} (pingo-doce-mcp; +https://github.com/vasco-branco06/supermercados-mcp)`;
 
 // Signs of a CAPTCHA or anti-bot challenge. Only checked when the page has no products.
 const CHALLENGE = /captcha|cf-chl|challenge-platform|access denied|are you a robot/i;

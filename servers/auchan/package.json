@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "Servidor MCP para o Auchan.pt: pesquisa de produtos e gestão do carrinho.",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "auchan-mcp": "src/index.js"
+    "auchan-mcp": "dist/index.js"
   },
   "engines": {
     "node": ">=20.18.1"
@@ -13,18 +13,33 @@
   "scripts": {
     "start": "node src/index.js",
     "setup": "playwright install chromium",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "esbuild src/index.js --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --external:@modelcontextprotocol/sdk --external:cheerio --external:playwright --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\"",
+    "prepack": "npm run build"
   },
-  "keywords": ["mcp", "model-context-protocol", "auchan", "supermarket", "portugal"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "auchan",
+    "supermarket",
+    "portugal"
+  ],
   "author": "Vasco Branco",
   "license": "MIT",
-  "files": ["src/", ".env.example", "LICENSE", "README.md"],
+  "files": [
+    "dist/",
+    ".env.example",
+    "LICENSE",
+    "README.md"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "cheerio": "^1.2.0",
-    "zod": "^4.6.7"
+    "cheerio": "^1.2.0"
   },
   "optionalDependencies": {
     "playwright": "^1.59.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

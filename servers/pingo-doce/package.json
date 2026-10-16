@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "MCP server for Pingo Doce (pingodoce.pt): search products and manage your cart.",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "pingo-doce-mcp": "src/index.js"
+    "pingo-doce-mcp": "dist/index.js"
   },
   "engines": {
     "node": ">=20.18.1"
@@ -13,7 +13,9 @@
   "scripts": {
     "start": "node src/index.js",
     "setup": "playwright install chromium",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "esbuild src/index.js --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --external:@modelcontextprotocol/sdk --external:cheerio --external:playwright --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\"",
+    "prepack": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -26,20 +28,22 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Vascobranco2509/supermercados-mcp.git"
+    "url": "git+https://github.com/vasco-branco06/supermercados-mcp.git"
   },
   "files": [
-    "src/",
+    "dist/",
     ".env.example",
     "LICENSE",
     "README.md"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "cheerio": "^1.2.0",
-    "zod": "^4.6.7"
+    "cheerio": "^1.2.0"
   },
   "optionalDependencies": {
     "playwright": "^1.59.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
