@@ -1,16 +1,24 @@
 {
   "mcpServers": {
     "continente": {
-      "command": "npx",
-      "args": ["-y", "continente-mcp"]
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/iniciar-continente.js"
+      ]
     },
     "pingo-doce": {
       "command": "npx",
-      "args": ["-y", "pingo-doce-mcp"]
+      "args": [
+        "-y",
+        "pingo-doce-mcp"
+      ]
     },
     "auchan": {
       "command": "npx",
-      "args": ["-y", "auchan-mcp"]
+      "args": [
+        "-y",
+        "auchan-mcp"
+      ]
     }
   }
 }

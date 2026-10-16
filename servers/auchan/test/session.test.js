@@ -5,8 +5,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createSession } from '../src/session.js';
 
+const EMAIL = 'vasco@example.com';
+const PASSWORD = 'segredo-123';
+const CREDENTIALS = { email: EMAIL, password: PASSWORD };
 const COOKIES = [{ name: 'sid', value: 'abc', domain: 'www.auchan.pt', path: '/' }];
-const ORIGINS = [{ origin: 'https://login.auchan.pt', localStorage: [{ name: 'device', value: 'known' }] }];
+const ORIGINS = [{ origin: 'https://www.auchan.pt', localStorage: [{ name: 'device', value: 'known' }] }];
 const STATE = { cookies: COOKIES, origins: ORIGINS };
 
 function tmp(t) {
@@ -21,188 +24,202 @@ const response = (url, { status = 200, text = '' } = {}) => ({
   url: () => url,
   text: async () => text,
 });
-const CART = 'https://www.auchan.pt/pt/carrinho-compras';
 
-// A fake Playwright: `accountOk` decides what the account page says; `launches` records the browser windows.
-function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, silentFails = false, missingChannels = [], windowClosesAfter = Infinity, afterLoginUrl = 'https://www.auchan.pt/pt/' } = {}) {
-  const launches = [];
-  const apis = [];
-  const state = { polls: 0, urlCalls: 0, windowClosed: 0, pageUrl: 'https://www.auchan.pt/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Login-OAuthLogin' };
-  const requester = (pages) => ({
+// A fake Playwright and a fake auchan.pt. `site.loggedIn` is what the shop thinks; the login form
+// only sets it when the right password was typed. Simulated: the real selectors were read from
+// login.auchan.pt/authorization and the real flow is only checked live.
+function fakePlaywright({ challenge = false, deliveryOk = true, missingChannels = [] } = {}) {
+  const site = { loggedIn: false, filled: {}, launches: [], clicked: [], browsersClosed: 0, apis: [], rotated: null };
+  const requester = () => ({
     async get(url) {
-      if (url.includes('Cart-Show')) return response(CART, { text: `<body data-authenticated="${accountOk()}">` });
-      if (url.includes('Delivery-Header')) return response(url, { text: `<div data-has-context="${deliveryOk()}"></div>` });
-      return response(pages?.[url] ?? url, { text: '<html></html>' });
+      if (url.includes('Cart-Show')) return response('https://www.auchan.pt/pt/carrinho-compras', { text: `<body data-authenticated="${site.loggedIn}">` });
+      if (url.includes('Delivery-Header')) return response(url, { text: `<div data-has-context="${deliveryOk}"></div>` });
+      return response(url, { text: '<html></html>' });
     },
     async post(url) { return response(url, { text: '{}' }); },
     async dispose() {},
-    async storageState() { return { cookies: state.rotated ?? COOKIES }; },
+    async storageState() { return { cookies: site.rotated ?? COOKIES, origins: [] }; },
   });
+  const locator = (selector) => {
+    const field = selector.includes('uname1') ? 'email' : selector.includes('passwordLogin') ? 'password' : selector.includes('btnSubmit_login') ? 'submit' : 'other';
+    const handle = {
+      first: () => handle,
+      async fill(value) { site.filled[field] = value; },
+      async click() {
+        site.clicked.push(field);
+        if (field === 'submit' && site.filled.password === PASSWORD && site.filled.email === EMAIL) site.loggedIn = true;
+      },
+      async count() { return challenge ? 1 : 0; },
+    };
+    return handle;
+  };
   return {
-    launches, apis, state,
-    chromium: {
-      async launch(options) {
-        launches.push(options);
-        if (options.channel ? missingChannels.includes(options.channel) : missingChannels.includes('bundled')) throw new Error('not installed');
-        let onDisconnect;
-        const headless = options.headless;
-        return {
-          on(event, fn) { if (event === 'disconnected') onDisconnect = fn; },
-          async close() { state.windowClosed++; },
-          async newContext(options) {
-            state.contextOptions = options;
-            return {
-              request: { get: async (url) => { state.polls++; if (state.polls >= windowClosesAfter) onDisconnect?.(); return requester().get(url); } },
-              async cookies() { return COOKIES; },
-              async storageState() { return STATE; },
-              async newPage() {
-                return {
-                  async goto(url) { state.gotoUrl = url; },
-                  url() { return !(headless && silentFails) && state.urlCalls++ >= 1 ? afterLoginUrl : state.pageUrl; },
-                };
-              },
-            };
-          },
-        };
+    site,
+    load: async () => ({
+      chromium: {
+        async launch(options) {
+          site.launches.push(options);
+          if (options.channel ? missingChannels.includes(options.channel) : missingChannels.includes('bundled')) throw new Error('not installed');
+          return {
+            async close() { site.browsersClosed++; },
+            async newContext(contextOptions) {
+              site.contextOptions = contextOptions;
+              return {
+                request: requester(),
+                async storageState() { return STATE; },
+                async newPage() {
+                  return {
+                    async goto(url) { site.gotoUrl = url; },
+                    locator,
+                    async waitForURL() { if (!site.loggedIn) throw new Error('timeout'); },
+                  };
+                },
+              };
+            },
+          };
+        },
       },
-    },
-    request: {
-      async newContext(options) {
-        const api = Object.assign(requester(), { options });
-        apis.push(api);
-        return api;
+      request: {
+        async newContext(options) { const api = Object.assign(requester(), { options }); site.apis.push(api); return api; },
       },
-    },
+    }),
   };
 }
 
-const quick = { keepAliveMs: 0, pollMs: 1, sleep: ms => new Promise(r => setTimeout(r, ms)), log() {} };
+const quick = { keepAliveMs: 0, log() {}, loginTimeoutMs: 50 };
 
-test('a saved session that still works opens no browser window', async (t) => {
+test('a saved session that still works logs in nowhere', async (t) => {
   const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  writeFileSync(cookieFile, JSON.stringify(STATE));
   const fake = fakePlaywright();
-  const session = createSession({ cookieFile, loadPlaywright: async () => fake, ...quick });
-  const reply = await session.site.get('/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Cart-Show');
-  assert.equal(reply.status, 200);
-  assert.equal(fake.launches.length, 0);
-  assert.deepEqual(fake.apis[0].options.storageState.cookies, COOKIES);
+  fake.site.loggedIn = true;
+  const session = createSession({ credentials: CREDENTIALS, cookieFile, loadPlaywright: fake.load, ...quick });
   assert.equal(await session.login(), 'saved');
+  assert.equal(fake.site.launches.length, 0, 'no browser was needed');
 });
 
-test('without a session a visible window opens, the cookies are saved and the window closes', async (t) => {
+test('without a session it logs in by itself in a background browser and saves the session', async (t) => {
   const cookieFile = tmp(t);
   const fake = fakePlaywright();
-  const session = createSession({ cookieFile, loadPlaywright: async () => fake, ...quick });
-  assert.equal(await session.login(), 'window');
-  assert.deepEqual(fake.launches[0], { headless: false, channel: 'msedge' });
-  assert.equal(fake.state.windowClosed, 1);
-  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), STATE, 'cookies and local storage are both kept');
-  assert.deepEqual(fake.apis.at(-1).options.storageState.cookies, COOKIES);
-  assert.equal(await session.login(), 'saved');
+  const session = createSession({ credentials: CREDENTIALS, cookieFile, loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'login');
+  assert.deepEqual(fake.site.launches[0], { headless: true, channel: 'msedge' }, 'headless, with the Edge the person already has');
+  assert.equal(fake.site.filled.email, EMAIL);
+  assert.equal(fake.site.filled.password, PASSWORD);
+  assert.ok(fake.site.clicked.includes('submit'));
+  assert.equal(fake.site.browsersClosed, 1);
+  const saved = readFileSync(cookieFile, 'utf8');
+  assert.deepEqual(JSON.parse(saved), STATE, 'cookies and local storage are both kept');
+  assert.ok(!saved.includes(PASSWORD) && !saved.includes(EMAIL), 'the credentials never reach the session file');
+  assert.equal(await session.login(), 'saved', 'and the second call reuses it');
+  assert.equal(fake.site.launches.length, 1);
+});
+
+test('it logs in again by itself when the shop ended the session', async (t) => {
+  const cookieFile = tmp(t);
+  writeFileSync(cookieFile, JSON.stringify(STATE));
+  const fake = fakePlaywright(); // the shop no longer knows the saved session
+  const session = createSession({ credentials: CREDENTIALS, cookieFile, loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'login');
+  assert.equal(fake.site.launches.length, 1);
+  assert.equal(fake.site.launches[0].headless, true, 'never a window');
+});
+
+test('without a credentials file the error says exactly what to create', async (t) => {
+  const fake = fakePlaywright();
+  const session = createSession({ credentials: null, credentialFile: 'C:/x/credentials.env', cookieFile: tmp(t), loadPlaywright: fake.load, ...quick });
+  await assert.rejects(session.login(), /falta o ficheiro C:\/x\/credentials\.env com as linhas AUCHAN_EMAIL=.* e AUCHAN_PASSWORD=/);
+  assert.equal(fake.site.launches.length, 0);
+});
+
+test('a login form that is not the expected one says so, without the credentials', async (t) => {
+  const fake = fakePlaywright();
+  const load = fake.load;
+  fake.load = async () => {
+    const pw = await load();
+    const launch = pw.chromium.launch;
+    pw.chromium.launch = async (o) => {
+      const b = await launch(o);
+      const newContext = b.newContext;
+      b.newContext = async (c) => { const ctx = await newContext(c); const newPage = ctx.newPage; ctx.newPage = async () => { const p = await newPage(); p.locator = () => ({ first() { return this; }, async fill() { throw new Error('Timeout waiting for locator'); }, async click() {}, async count() { return 0; } }); return p; }; return ctx; };
+      return b;
+    };
+    return pw;
+  };
+  const session = createSession({ credentials: CREDENTIALS, cookieFile: tmp(t), loadPlaywright: fake.load, ...quick });
+  await assert.rejects(session.login(), (e) => /formulário de login do Auchan não é o esperado/.test(e.message) && !e.message.includes(PASSWORD));
+});
+
+test('a wrong password gives a fixed message that does not contain the credentials', async (t) => {
+  const fake = fakePlaywright();
+  const session = createSession({ credentials: { email: EMAIL, password: 'errada' }, cookieFile: tmp(t), loadPlaywright: fake.load, ...quick });
+  await assert.rejects(session.login(), (e) => /o login não terminou/.test(e.message) && !e.message.includes(EMAIL) && !e.message.includes('errada'));
+});
+
+test('a CAPTCHA at login stops with an error and is never worked around', async (t) => {
+  const fake = fakePlaywright({ challenge: true });
+  const session = createSession({ credentials: { email: EMAIL, password: 'errada' }, cookieFile: tmp(t), loadPlaywright: fake.load, ...quick });
+  await assert.rejects(session.login(), /verificação anti-robô \(CAPTCHA\)/);
+});
+
+test('a login that works but has no delivery chosen says to choose it once on auchan.pt', async (t) => {
+  const fake = fakePlaywright({ deliveryOk: false });
+  const session = createSession({ credentials: CREDENTIALS, cookieFile: tmp(t), loadPlaywright: fake.load, ...quick });
+  await assert.rejects(session.login(), /escolhe-a uma vez no auchan\.pt/);
 });
 
 test('Edge missing falls back to Chrome, then to the bundled Chromium', async (t) => {
   const chromeOnly = fakePlaywright({ missingChannels: ['msedge'] });
-  await createSession({ cookieFile: tmp(t), loadPlaywright: async () => chromeOnly, ...quick }).login();
-  assert.deepEqual(chromeOnly.launches.map(l => l.channel), ['msedge', 'chrome']);
+  await createSession({ credentials: CREDENTIALS, cookieFile: tmp(t), loadPlaywright: chromeOnly.load, ...quick }).login();
+  assert.deepEqual(chromeOnly.site.launches.map(l => l.channel), ['msedge', 'chrome']);
 
   const bundled = fakePlaywright({ missingChannels: ['msedge', 'chrome'] });
-  await createSession({ cookieFile: tmp(t), loadPlaywright: async () => bundled, ...quick }).login();
-  assert.deepEqual(bundled.launches.map(l => l.channel), ['msedge', 'chrome', undefined]);
-});
+  await createSession({ credentials: CREDENTIALS, cookieFile: tmp(t), loadPlaywright: bundled.load, ...quick }).login();
+  assert.deepEqual(bundled.site.launches.map(l => l.channel), ['msedge', 'chrome', undefined]);
 
-test('no browser at all gives a clear message', async (t) => {
   const none = fakePlaywright({ missingChannels: ['msedge', 'chrome', 'bundled'] });
-  const session = createSession({ cookieFile: tmp(t), loadPlaywright: async () => none, ...quick });
-  await assert.rejects(session.login(), /não encontrei o Microsoft Edge nem o Google Chrome/);
+  await assert.rejects(createSession({ credentials: CREDENTIALS, cookieFile: tmp(t), loadPlaywright: none.load, ...quick }).login(), /não encontrei o Microsoft Edge nem o Google Chrome/);
 });
 
-test('closing the window before logging in ends with an error and saves nothing', async (t) => {
-  const cookieFile = tmp(t);
-  const fake = fakePlaywright({ accountOk: () => false, windowClosesAfter: 2 });
-  const session = createSession({ cookieFile, loadPlaywright: async () => fake, ...quick });
-  await assert.rejects(session.login(), /a janela de login foi fechada/);
-  assert.equal(existsSync(cookieFile), false);
-});
-
-test('the person has a limited time to log in', async (t) => {
-  const fake = fakePlaywright({ accountOk: () => false, afterLoginUrl: 'https://login.example.com/' });
-  const session = createSession({ cookieFile: tmp(t), loadPlaywright: async () => fake, loginTimeoutMs: 30, ...quick });
-  await assert.rejects(session.login(), /o login não terminou/);
-  assert.equal(fake.state.windowClosed, 1);
+test('a missing Playwright package is reported in Portuguese', async (t) => {
+  const session = createSession({ credentials: CREDENTIALS, cookieFile: tmp(t), loadPlaywright: async () => { throw new Error('nope'); }, ...quick });
+  await assert.rejects(session.login(), /falta o Playwright/);
 });
 
 test('logout deletes the saved session', async (t) => {
   const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(COOKIES));
-  const session = createSession({ cookieFile, loadPlaywright: async () => fakePlaywright(), ...quick });
+  const fake = fakePlaywright();
+  const session = createSession({ credentials: CREDENTIALS, cookieFile, loadPlaywright: fake.load, ...quick });
   await session.login();
+  assert.ok(existsSync(cookieFile));
   await session.logout();
   assert.equal(existsSync(cookieFile), false);
 });
 
-test('a missing Playwright package is reported in Portuguese', async (t) => {
-  const session = createSession({ cookieFile: tmp(t), loadPlaywright: async () => { throw new Error('nope'); }, ...quick });
-  await assert.rejects(session.login(), /falta o Playwright/);
-});
-
-test('a login without a delivery choice keeps the window open until the person picks one', async (t) => {
-  const cookieFile = tmp(t);
-  // The delivery choice only shows up in the site header after the window was polled a few times.
-  const probe = fakePlaywright({ deliveryOk: () => probe.state.polls >= 3 });
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
-  assert.equal(await session.login(), 'window');
-  assert.ok(probe.state.polls >= 3, 'the window waited for the delivery choice');
-  assert.equal(probe.state.windowClosed, 1);
-});
-
-test('a saved login that lacks the delivery choice reopens the site with that login', async (t) => {
-  const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(COOKIES));
-  const probe = fakePlaywright({ deliveryOk: () => probe.state.polls >= 2 });
-  // The saved session answers "no delivery" until the person picks one in the window.
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
-  assert.equal(await session.login(), 'window');
-  assert.deepEqual(probe.state.contextOptions.storageState.cookies, COOKIES, 'the saved login is loaded into the window');
-  assert.equal(probe.state.gotoUrl, 'https://www.auchan.pt/pt/', 'it opens the site, not the login page');
-});
-
-test('cookies the site renewed while running are saved for next time', async (t) => {
-  const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(COOKIES));
-  const probe = fakePlaywright();
-  probe.state.rotated = [{ name: 'dwsid', value: 'renewed', domain: 'www.auchan.pt', path: '/' }];
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
-  await session.site.get('/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Cart-Show');
-  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), { cookies: probe.state.rotated, origins: [] });
-});
-
-test('the session is kept alive while the server runs, and what the site renews is saved', async (t) => {
+test('the keep-alive saves what the site renews and logs in again when the shop ends the session', async (t) => {
   const cookieFile = tmp(t);
   writeFileSync(cookieFile, JSON.stringify(STATE));
-  const probe = fakePlaywright();
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick, keepAliveMs: 20 });
+  const fake = fakePlaywright();
+  fake.site.loggedIn = true;
+  const session = createSession({ credentials: CREDENTIALS, cookieFile, loadPlaywright: fake.load, ...quick, keepAliveMs: 20 });
   assert.equal(await session.login(), 'saved');
-  const before = probe.state.requests;
-  probe.state.rotated = [{ name: 'dwsid', value: 'kept-alive', domain: 'www.auchan.pt', path: '/' }];
+  fake.site.rotated = [{ name: 'sid', value: 'renewed', domain: 'www.auchan.pt', path: '/' }];
   await new Promise(r => setTimeout(r, 3500));
-  await session.close();
-  assert.ok(probe.state.polls >= 0);
-  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')).cookies, probe.state.rotated);
+  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')).cookies, fake.site.rotated, 'renewed cookies are saved');
   assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')).origins, ORIGINS, 'local storage is not lost');
+
+  fake.site.loggedIn = false; // the shop ends the session while the server is idle
+  await new Promise(r => setTimeout(r, 6000));
+  await session.close();
+  assert.equal(fake.site.launches.length, 1, 'it logged in again by itself, in the background');
+  assert.equal(fake.site.launches[0].headless, true);
 });
 
-
-test('a session that expires while idle makes the next cart call ask the person, never opens a window by itself', async (t) => {
+test('an old cookies-only session file is still read', async (t) => {
   const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(STATE));
-  let expired = false;
-  const probe = fakePlaywright({ accountOk: () => !expired });
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick, keepAliveMs: 20 });
-  await session.login();
-  expired = true;
-  await new Promise(r => setTimeout(r, 3500));
-  await session.close();
-  assert.equal(probe.launches.length, 0, 'the keep-alive never opens a window');
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const fake = fakePlaywright();
+  fake.site.loggedIn = true;
+  const session = createSession({ credentials: CREDENTIALS, cookieFile, loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'saved');
 });

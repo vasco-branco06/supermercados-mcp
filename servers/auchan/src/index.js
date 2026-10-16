@@ -6,7 +6,7 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { addToCart, getCart, publicCart, updateCartItem, validateCartInput } from './cart.js';
 import { VERSION } from './http.js';
-import { resolveStatePaths } from './paths.js';
+import { loadCredentials, resolveStatePaths } from './paths.js';
 import { searchProducts } from './search.js';
 import { createSession } from './session.js';
 
@@ -58,12 +58,12 @@ const CART_TOOLS = [
 const LOGIN_TOOLS = [
   {
     name: 'login',
-    description: 'Connect your Auchan account. Opens a browser window on the Auchan.pt login page; the person logs in there and chooses home delivery or pickup with a postal code (Auchan needs this before any cart change), then the window closes. Tell the person this before calling. The password is never seen or stored. Cart tools call this automatically when there is no session.',
+    description: 'Connect your Auchan account with the email and password in credentials.env (no window). Logs in again by itself whenever the session ends. Cart tools call this automatically.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'logout',
-    description: 'Disconnect your Auchan account: deletes the saved session from this computer.',
+    description: 'Disconnect your Auchan account: deletes the saved session from this computer (credentials.env is kept).',
     inputSchema: { type: 'object', properties: {} },
   },
 ];
@@ -103,7 +103,13 @@ export class AuchanServer {
     const paths = resolveStatePaths(env);
     this.cacheDir = paths.cacheDir;
     this.fetchImpl = fetchImpl;
-    this.session = session ?? createSession({ cookieFile: paths.cookieFile });
+    this.credentialsFound = Boolean(loadCredentials(env));
+    this.session = session ?? createSession({
+      credentials: loadCredentials(env),
+      credentialFile: paths.sharedCredentialFile,
+      cookieFile: paths.cookieFile,
+      headless: env.AUCHAN_LOGIN_HEADLESS !== 'false',
+    });
     this.tools = [SEARCH_TOOL, ...CART_TOOLS, ...LOGIN_TOOLS, CLOSE_TOOL];
 
     this.server = new Server({ name: 'auchan-mcp', version: VERSION }, { capabilities: { tools: {} } });
@@ -146,7 +152,7 @@ export class AuchanServer {
         case 'login':
           return text(await this.session.login() === 'saved'
             ? 'Já tens a sessão do Auchan iniciada.'
-            : 'Sessão do Auchan iniciada. Já posso usar o teu carrinho.');
+            : 'Sessão do Auchan iniciada com o ficheiro de credenciais. Já posso usar o teu carrinho.');
         case 'logout':
           await this.session.logout();
           return text('Sessão do Auchan terminada: apaguei a sessão guardada neste computador.');
@@ -161,7 +167,7 @@ export class AuchanServer {
 
   async start() {
     await this.server.connect(new StdioServerTransport());
-    console.error(`Auchan MCP v${VERSION} started`);
+    console.error(`Auchan MCP v${VERSION} started${this.credentialsFound ? '' : ' (search only until credentials.env exists)'}`);
   }
 }
 

@@ -133,12 +133,12 @@ test('add_to_cart and update_cart_item answer with one short sentence, errors wi
 
 test('login and logout talk to the session and say what happened', async (t) => {
   const calls = [];
-  let answer = 'window';
+  let answer = 'login';
   const server = new AuchanServer({
     env: { AUCHAN_STATE_DIR: stateDir(t) },
     session: { site: {}, async login() { calls.push('login'); return answer; }, async logout() { calls.push('logout'); }, async close() {} },
   });
-  assert.equal((await server.callTool('login', {})).content[0].text, 'Sessão do Auchan iniciada. Já posso usar o teu carrinho.');
+  assert.equal((await server.callTool('login', {})).content[0].text, 'Sessão do Auchan iniciada com o ficheiro de credenciais. Já posso usar o teu carrinho.');
   answer = 'saved';
   assert.equal((await server.callTool('login', {})).content[0].text, 'Já tens a sessão do Auchan iniciada.');
   assert.match((await server.callTool('logout', {})).content[0].text, /apaguei a sessão guardada/);
@@ -148,9 +148,9 @@ test('login and logout talk to the session and say what happened', async (t) => 
 test('a login that fails comes back as an error sentence', async (t) => {
   const server = new AuchanServer({
     env: { AUCHAN_STATE_DIR: stateDir(t) },
-    session: { site: {}, async login() { throw new Error('a janela de login foi fechada antes de o login terminar; tenta de novo'); }, async close() {} },
+    session: { site: {}, async login() { throw new Error('o login não terminou; confirma o email e a palavra-passe no ficheiro de credenciais'); }, async close() {} },
   });
   const result = await server.callTool('login', {});
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /^Error: auchan: a janela de login foi fechada/);
+  assert.match(result.content[0].text, /^Error: auchan: o login não terminou/);
 });

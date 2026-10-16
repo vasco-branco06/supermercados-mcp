@@ -10,6 +10,7 @@ Feito à imagem do [continente-mcp](https://github.com/davidmarqu3s/continente-m
 
 - **Pesquisa sem conta**: nome, marca, preço, preço e preço por litro, quilo ou unidade.
 - **Carrinho**: ver, juntar e mudar quantidades; cada alteração é confirmada no carrinho a seguir.
+- **Entra sozinho**: usa o email e a palavra-passe de um ficheiro teu, em segundo plano e sem janela, e volta a entrar sempre que o Auchan termina a sessão.
 - **Respeita o site**: no máximo um pedido por segundo, resultados guardados durante 6 horas e um user-agent que diz quem é.
 - **Tu decides**: a finalização da encomenda e o pagamento fazem-se sempre no Auchan.pt. O servidor não tem nenhuma ferramenta para isso.
 
@@ -31,7 +32,16 @@ Precisas do Node.js 20.18.1 ou mais recente e de um cliente MCP, por exemplo o C
 }
 ```
 
-A pesquisa funciona logo, sem conta. Para o carrinho não crias nada: quando o assistente precisar dele, abre-se uma janela do Edge ou do Chrome na página de login do Auchan. Entras tu, a janela fecha e ficas ligado. A palavra-passe nunca passa pelo servidor nem fica guardada: só a sessão, no teu computador (`%USERPROFILE%\.auchan-mcp\cookies.json`). Se aparecer um CAPTCHA, resolves tu na janela.
+A pesquisa funciona logo, sem conta. Para o carrinho, cria o ficheiro `%USERPROFILE%\.auchan-mcp\credentials.env` (no macOS e Linux, `~/.auchan-mcp/credentials.env`) com duas linhas, sem aspas e sem espaços à volta do `=`:
+
+```
+AUCHAN_EMAIL=o-teu-email
+AUCHAN_PASSWORD=a-tua-palavra-passe
+```
+
+Também lê `~/.supermercados-mcp/credentials.env`, o ficheiro que o plugin [supermercados-mcp](https://github.com/vasco-branco06/supermercados-mcp) cria e abre sozinho na primeira vez, e o que `AUCHAN_ENV_PATH` indicar. O Auchan só aceita produtos no carrinho depois de escolheres uma vez, no site, entrega em casa ou levantamento (com o código postal); essa escolha fica guardada na tua conta.
+
+A palavra-passe fica em texto simples nesse ficheiro, na tua pasta de utilizador. Não o partilhes. Só é lida para preencher o formulário de login e nunca aparece nas respostas nem nos registos. A sessão (cookies e armazenamento local) fica em `%USERPROFILE%\.auchan-mcp\cookies.json`.
 
 ## Usar
 
@@ -42,12 +52,16 @@ Pede coisas como "procura leite meio-gordo no Auchan" ou "junta 2 pacotes ao car
 | `search_products` | Pesquisar o catálogo (devolve JSON) |
 | `get_cart` | Ver o carrinho |
 | `add_to_cart` / `update_cart_item` | Juntar um produto / mudar a quantidade (0 tira-o) |
-| `login` | Ligar a tua conta: abre a janela de login (as ferramentas do carrinho fazem-no sozinhas se for preciso) |
-| `logout` | Desligar a conta: apaga a sessão guardada neste computador |
+| `login` | Verificar ou renovar a sessão com o ficheiro de credenciais (as ferramentas do carrinho fazem-no sozinhas) |
+| `logout` | Desligar a conta: apaga a sessão guardada neste computador (o ficheiro de credenciais fica) |
 | `close_session` | Libertar recursos |
+
+Com o servidor a correr, faz um pedido leve de 10 em 10 minutos para o Auchan não fechar a sessão por inatividade, e guarda o que o site renova.
 
 ## Mais
 
+- **Sem ficheiro de credenciais:** existe o ramo [`login-por-janela`](https://github.com/vasco-branco06/supermercados-mcp/tree/login-por-janela), em que a pessoa entra numa janela do browser e a palavra-passe nunca é guardada.
+- **Definições:** variáveis em [`.env.example`](.env.example).
 - **Problemas:** [docs/troubleshooting.md](docs/troubleshooting.md).
 - **Testes:** `npm test` corre sem internet. `LIVE=1` liga um teste que faz um pedido real ao Auchan.pt (no PowerShell: `$env:LIVE=1; npm test`).
 
