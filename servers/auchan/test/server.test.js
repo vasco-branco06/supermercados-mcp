@@ -88,8 +88,9 @@ test('cart tools use the session and close_session closes it', async (t) => {
     env: { AUCHAN_STATE_DIR: stateDir(t, 'AUCHAN_EMAIL=a@b.pt\nAUCHAN_PASSWORD=segredo\n') },
     session: { site, async close() { closed++; } },
   });
-  const cart = JSON.parse((await server.callTool('get_cart', {})).content[0].text);
-  assert.deepEqual(cart.items, [{ product_id: '1', uuid: 'u', name: null, quantity: 2 }]);
+  const response = (await server.callTool('get_cart', {})).content[0].text;
+  assert.deepEqual(JSON.parse(response), { store: 'auchan', count: 1, items: [{ product_id: '1', name: null, quantity: 2, price: null }], total: null });
+  assert.doesNotMatch(response, /csrf|uuid|"t"|"u"/, 'no site token or line id in the response');
   assert.equal((await server.callTool('add_to_cart', { product_id: 'abc' })).isError, true);
   assert.equal((await server.callTool('close_session', {})).content[0].text, 'Session closed.');
   assert.equal(closed, 1);

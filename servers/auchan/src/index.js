@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { addToCart, getCart, updateCartItem, validateCartInput } from './cart.js';
+import { addToCart, getCart, publicCart, updateCartItem, validateCartInput } from './cart.js';
 import { VERSION } from './http.js';
 import { loadCredentials, resolveStatePaths } from './paths.js';
 import { searchProducts } from './search.js';
@@ -26,7 +26,7 @@ const SEARCH_TOOL = {
 const CART_TOOLS = [
   {
     name: 'get_cart',
-    description: 'View your current Auchan shopping cart.',
+    description: 'View your current Auchan shopping cart. Returns JSON with store, count, items (product_id, name, quantity, price) and total.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -111,7 +111,7 @@ export class AuchanServer {
           return text(await searchProducts(query, limit, { cacheDir: this.cacheDir, fetchImpl: this.fetchImpl }));
         }
         case 'get_cart':
-          return text(await getCart(this.session.site));
+          return text(publicCart(await getCart(this.session.site)));
         case 'add_to_cart':
         case 'update_cart_item': {
           const { product_id, quantity } = validateCartInput(name, args);

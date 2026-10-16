@@ -24,24 +24,36 @@ export function validateCartInput(name, args) {
   return { product_id: args.product_id, quantity };
 }
 
-// Cart page HTML -> { items: [{ product_id, uuid, name, quantity }], csrf }.
+// Cart page HTML -> { items: [{ product_id, uuid, name, quantity, price }], total, csrf }.
 // Every line item control on the cart page carries data-pid and data-uuid.
+// uuid and csrf are for the site requests only; publicCart() is what tools may return.
 export function parseCart(html) {
   const $ = cheerio.load(html);
   const lines = new Map();
   $('[data-pid][data-uuid]').each((_, el) => {
     const $el = $(el);
     const uuid = $el.attr('data-uuid');
-    const line = lines.get(uuid) ?? { product_id: $el.attr('data-pid'), uuid, name: null, quantity: null };
+    const line = lines.get(uuid) ?? { product_id: $el.attr('data-pid'), uuid, name: null, quantity: null, price: null };
     const value = $el.is('select') ? $el.find('option[selected]').attr('value') ?? $el.val() : $el.attr('value');
     if ($el.is('input, select') && line.quantity === null && value !== undefined) line.quantity = Number(value);
     const $line = $el.closest('.product-info, .line-item, .card');
     line.name ??= $el.attr('data-name') || $line.find('.line-item-name').first().text().replace(/\s+/g, ' ').trim() || null;
+    const price = Number($line.find('.sales .value[content]').first().attr('content') || NaN);
+    if (line.price === null && Number.isFinite(price) && price > 0) line.price = price;
     lines.set(uuid, line);
   });
   const csrf = $('input[name="csrf_token"]').attr('value') || $('[data-csrf-protection-token]').attr('data-csrf-protection-token') || null;
-  return { items: [...lines.values()].filter(item => Number.isFinite(item.quantity)), csrf };
+  const total = $('.grand-total, .grand-total-sum').first().text().replace(/\s+/g, ' ').trim() || null;
+  return { items: [...lines.values()].filter(item => Number.isFinite(item.quantity)), total, csrf };
 }
+
+// The get_cart response from shared/CONTRATO.md: no tokens, no line uuids.
+export const publicCart = (cart) => ({
+  store: 'auchan',
+  count: cart.items.length,
+  items: cart.items.map(({ product_id, name, quantity, price }) => ({ product_id, name, quantity, price })),
+  total: cart.total,
+});
 
 const quantityOf = (cart, productId) =>
   cart.items.filter(item => item.product_id === productId).reduce((sum, item) => sum + item.quantity, 0);
