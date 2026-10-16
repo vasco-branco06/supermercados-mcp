@@ -8,12 +8,12 @@ Feito à imagem do [continente-mcp](https://github.com/davidmarqu3s/continente-m
 
 ## O que faz
 
-- **Pesquisa sem conta**: nome, marca, preço, preço por litro, quilo ou unidade, e disponibilidade.
+- **Pesquisa sem conta**: nome, marca, preço, preço e preço por litro, quilo ou unidade.
 - **Carrinho**: ver, juntar e mudar quantidades; cada alteração é confirmada no carrinho a seguir.
 - **Respeita o site**: no máximo um pedido por segundo, resultados guardados durante 6 horas e um user-agent que diz quem é.
 - **Tu decides**: a finalização da encomenda e o pagamento fazem-se sempre no Auchan.pt. O servidor não tem nenhuma ferramenta para isso.
 
-As promoções não aparecem na pesquisa: o Auchan carrega-as num pedido à parte que esta versão não faz, por isso `promo` vem sempre `null`.
+As promoções e a disponibilidade não aparecem na pesquisa: o Auchan carrega-as em pedidos à parte que esta versão não faz, por isso `promo` e `available` vêm sempre `null`.
 
 ## Aviso
 

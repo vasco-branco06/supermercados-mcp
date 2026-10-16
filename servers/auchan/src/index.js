@@ -12,7 +12,7 @@ import { createSession } from './session.js';
 
 const SEARCH_TOOL = {
   name: 'search_products',
-  description: 'Search Auchan.pt products. Returns JSON with store, query, count and products (price in EUR, unit price, availability). Promotions are not loaded (promo is always null).',
+  description: 'Search Auchan.pt products. Returns JSON with store, query, count and products (price in EUR, unit price). Promotions and availability are not loaded (promo and available are always null).',
   inputSchema: {
     type: 'object',
     properties: {

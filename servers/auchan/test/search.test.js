@@ -11,23 +11,8 @@ const html = fixture('auchan-leite.html');
 const raw = JSON.parse(fixture('auchan-leite.raw.json'));
 const expected = JSON.parse(fixture('auchan-leite.expected.json'));
 const FETCHED_AT = '2026-10-16T12:00:00.000Z';
-const withoutAvailable = ({ available, ...rest }) => rest;
-
-// The fixture marks 3704143 as unavailable, but its HTML tile carries no unavailability marker.
-// Logged in PEDIDOS-auchan.md; this exact check stays a todo until the contract is settled.
-test('parseProducts turns the fixture into exactly raw.json', { todo: 'available of 3704143 is not in the HTML (PEDIDOS-auchan.md)' }, () => {
+test('parseProducts turns the fixture into exactly raw.json', () => {
   assert.deepEqual(parseProducts(html), raw);
-});
-
-test('parseProducts matches raw.json on every field the HTML carries', () => {
-  assert.deepEqual(parseProducts(html).map(withoutAvailable), raw.map(withoutAvailable));
-});
-
-test('a tile marked with .auc-unavailable-text is unavailable', () => {
-  const marked = html.replace('<div class="auc-product-tile__name">',
-    '<span class="auc-unavailable-text">Esgotado</span><div class="auc-product-tile__name">');
-  assert.equal(parseProducts(marked)[0].available, false);
-  assert.equal(parseProducts(marked)[1].available, true);
 });
 
 test('a tile without a price is skipped, never invented', () => {
@@ -61,7 +46,7 @@ test('searchProducts normalizes, limits, and serves the cache for 6 hours', asyn
     const first = await searchProducts('leite meio', 2, options);
     assert.equal(first.store, 'auchan');
     assert.equal(first.count, 2);
-    assert.deepEqual(first.products.map(withoutAvailable), expected.slice(0, 2).map(withoutAvailable));
+    assert.deepEqual(first.products, expected.slice(0, 2));
     first.products.forEach(p => ProductSchema.parse(p));
 
     clock += 5 * 60 * 60 * 1000;

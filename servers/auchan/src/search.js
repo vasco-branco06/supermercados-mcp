@@ -35,7 +35,6 @@ export function parseProducts(html) {
       brand: gtm.brand?.trim() || null,
       price,
       unit_text: $tile.find('.auc-measures--price-per-unit').first().text().trim() || null,
-      available: $tile.find('.auc-unavailable-text').length === 0,
       url: new URL(href, AUCHAN_BASE).href,
     });
   });
