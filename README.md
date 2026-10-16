@@ -46,6 +46,35 @@ Passos:
 
 A pesquisa de produtos funciona sem conta em nenhum dos três supermercados. Não precisas de instalar mais nada para o Pingo Doce e o Auchan.
 
+## Instalar só os servidores, sem o plugin
+
+Se não queres o plugin, podes ligar os três servidores MCP diretamente ao teu cliente. Ficas sem as skills (`perfil`, `receitas-semana`, `cesto-mais-barato`) e sem o histórico, mas podes pedir ao Claude coisas como "procura leite meio gordo nos três supermercados e diz-me onde é mais barato". O login por janela funciona da mesma forma.
+
+**Claude Code.** No PowerShell, uma vez (o `--scope user` serve para todas as pastas):
+
+```powershell
+claude mcp add --scope user pingo-doce -- cmd /c npx -y pingo-doce-mcp
+claude mcp add --scope user auchan -- cmd /c npx -y auchan-mcp
+claude mcp add --scope user continente -- cmd /c npx -y continente-mcp
+npx -y -p continente-mcp playwright install chromium
+```
+
+O último comando descarrega o browser que o servidor do Continente usa (cerca de 110 MB) e só é preciso uma vez. Depois escreve `claude mcp list`: os três devem aparecer como "Connected". No macOS ou Linux, tira o `cmd /c`.
+
+**Claude Desktop e outros clientes MCP.** Acrescenta este bloco ao ficheiro de configuração do cliente (no Claude Desktop, em Definições, Programador, Editar configuração, ou em `%APPDATA%Claudeclaude_desktop_config.json`) e reinicia-o:
+
+```json
+{
+  "mcpServers": {
+    "continente": { "command": "npx", "args": ["-y", "continente-mcp"] },
+    "pingo-doce": { "command": "npx", "args": ["-y", "pingo-doce-mcp"] },
+    "auchan": { "command": "npx", "args": ["-y", "auchan-mcp"] }
+  }
+}
+```
+
+Precisas do Node.js 20.18.1 ou mais recente em qualquer dos casos. Testámos os comandos no Claude Code em Windows; o bloco de configuração segue o formato padrão dos clientes MCP.
+
 ## Carrinho (opcional)
 
 Pingo Doce e Auchan: quando pedes ao Claude para pôr produtos no carrinho, abre-se uma janela do browser (o Edge ou o Chrome que já tens) na página de login do supermercado. Entras tu, a janela fecha e ficas ligado, como nos outros conectores do Claude. No Auchan escolhes também, na mesma janela, se queres entrega em casa ou levantamento e o código postal, porque o site não aceita produtos no carrinho sem isso. O Auchan só deixa encomendar a partir de 20 €. Não crias nenhum ficheiro e a palavra-passe nunca passa pelo plugin: só fica a sessão, no teu computador. Se aparecer um CAPTCHA, resolves tu na janela. Para desligar, pede ao Claude para terminar a sessão (ferramenta `logout`).
