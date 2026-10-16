@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { addToCart, getCart, updateCartItem, validateCartInput } from './cart.js';
+import { addToCart, getCart, publicCart, updateCartItem, validateCartInput } from './cart.js';
 import { VERSION } from './http.js';
 import { loadCredentials, resolveStatePaths } from './paths.js';
 import { searchProducts } from './search.js';
@@ -26,7 +26,7 @@ const SEARCH_TOOL = {
 const CART_TOOLS = [
   {
     name: 'get_cart',
-    description: 'View your current Auchan shopping cart.',
+    description: 'View your current Auchan shopping cart. Returns JSON with store, count, items (product_id, name, quantity, price) and total.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -65,6 +65,15 @@ const text = (value, isError = false) => ({
   content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }],
   ...(isError && { isError: true }),
 });
+
+const CHECKOUT_NOTE = 'A encomenda e o pagamento fazem-se no site auchan.pt.';
+
+// add_to_cart / update_cart_item answer with one short sentence (shared/CONTRATO.md).
+function cartReply(result, verb, productId, success) {
+  if (result.success) return text(success(result));
+  if (result.error === 'not_in_cart') return text(`Error: auchan: o produto ${productId} não está no carrinho.`, true);
+  return text(`Error: auchan: não consegui ${verb} ${productId} (${result.error}). Corre get_cart antes de tentar de novo.`, true);
+}
 
 function validateSearch(args) {
   const { query, limit = 10 } = args;
@@ -111,13 +120,17 @@ export class AuchanServer {
           return text(await searchProducts(query, limit, { cacheDir: this.cacheDir, fetchImpl: this.fetchImpl }));
         }
         case 'get_cart':
-          return text(await getCart(this.session.site));
+          return text(publicCart(await getCart(this.session.site)));
         case 'add_to_cart':
         case 'update_cart_item': {
           const { product_id, quantity } = validateCartInput(name, args);
-          const run = name === 'add_to_cart' ? addToCart : updateCartItem;
-          const result = await run(this.session.site, product_id, quantity);
-          return text(result, !result.success);
+          return name === 'add_to_cart'
+            ? cartReply(await addToCart(this.session.site, product_id, quantity), 'adicionar', product_id,
+              r => `Adicionado ao carrinho: ${product_id}, agora com quantidade ${r.cart_quantity}. Usa get_cart para rever. ${CHECKOUT_NOTE}`)
+            : cartReply(await updateCartItem(this.session.site, product_id, quantity), 'mudar', product_id,
+              () => quantity === 0
+                ? `Removido do carrinho: ${product_id}. ${CHECKOUT_NOTE}`
+                : `Quantidade de ${product_id} no carrinho: ${quantity}. ${CHECKOUT_NOTE}`);
         }
         case 'close_session':
           await this.session?.close();

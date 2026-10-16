@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CART_ACTIONS, addToCart, cartPath, getCart, parseCart, updateCartItem, validateCartInput } from '../src/cart.js';
+import { CART_ACTIONS, addToCart, cartPath, getCart, parseCart, publicCart, updateCartItem, validateCartInput } from '../src/cart.js';
 
-const cartHtml = (lines) => `<html><body><input type="hidden" name="csrf_token" value="tok123">
-${lines.map(({ pid, uuid, qty, name }) => `<div class="card product-info uuid-${uuid}">
+const cartHtml = (lines, total = '1,70 €') => `<html><body><input type="hidden" name="csrf_token" value="tok123">
+${lines.map(({ pid, uuid, qty, name, price }) => `<div class="card product-info uuid-${uuid}">
   <div class="line-item-name"><span>${name}</span></div>
+  ${price ? `<span class="sales"><span class="value" content="${price}">${price} €</span></span>` : ''}
   <input class="quantity" type="number" data-pid="${pid}" data-uuid="${uuid}" value="${qty}">
   <button class="remove-product" data-pid="${pid}" data-uuid="${uuid}" data-name="${name}"></button>
-</div>`).join('\n')}</body></html>`;
+</div>`).join('\n')}<p class="grand-total"> ${total} </p></body></html>`;
 
 // A fake auchan.pt: keeps a basket in memory and records every call.
 function fakeSite({ lines = [], reject = false, ignoreWrites = false } = {}) {
@@ -38,14 +39,30 @@ function fakeSite({ lines = [], reject = false, ignoreWrites = false } = {}) {
   };
 }
 
-const milk = { pid: '3010403', uuid: 'abc', qty: 2, name: 'Leite UHT Auchan Meio Gordo 1L' };
+const milk = { pid: '3010403', uuid: 'abc', qty: 2, name: 'Leite UHT Auchan Meio Gordo 1L', price: 0.85 };
 
-test('parseCart reads lines, quantities and the CSRF token', () => {
+test('parseCart reads lines, quantities, prices, total and the CSRF token', () => {
   assert.deepEqual(parseCart(cartHtml([milk])), {
-    items: [{ product_id: '3010403', uuid: 'abc', name: 'Leite UHT Auchan Meio Gordo 1L', quantity: 2 }],
+    items: [{ product_id: '3010403', uuid: 'abc', name: 'Leite UHT Auchan Meio Gordo 1L', quantity: 2, price: 0.85 }],
+    total: '1,70 €',
     csrf: 'tok123',
   });
-  assert.deepEqual(parseCart('<html><body></body></html>').items, []);
+  assert.deepEqual(parseCart('<html><body></body></html>'), { items: [], total: null, csrf: null });
+});
+
+test('publicCart is the contract shape and never carries tokens or line ids', () => {
+  const unpriced = { pid: '11885', uuid: 'def', qty: 1, name: 'Leite Mimosa' };
+  const cart = publicCart(parseCart(cartHtml([milk, unpriced])));
+  assert.deepEqual(cart, {
+    store: 'auchan',
+    count: 2,
+    items: [
+      { product_id: '3010403', name: 'Leite UHT Auchan Meio Gordo 1L', quantity: 2, price: 0.85 },
+      { product_id: '11885', name: 'Leite Mimosa', quantity: 1, price: null },
+    ],
+    total: '1,70 €',
+  });
+  assert.doesNotMatch(JSON.stringify(cart), /tok123|abc|def|csrf|uuid/);
 });
 
 test('only cart actions exist: there is no way to reach checkout or payment', () => {
