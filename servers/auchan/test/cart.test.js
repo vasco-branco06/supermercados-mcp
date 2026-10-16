@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { CART_ACTIONS, addToCart, cartPath, getCart, parseCart, publicCart, updateCartItem, validateCartInput } from '../src/cart.js';
 
+// Same structure as the real cart page (see test/fixtures/carrinho.html).
+const attr = value => JSON.stringify(value).replace(/"/g, '&quot;');
 const cartHtml = (lines, total = '1,70 €') => `<html><body><input type="hidden" name="csrf_token" value="tok123">
-${lines.map(({ pid, uuid, qty, name, price }) => `<div class="card product-info uuid-${uuid}">
-  <div class="line-item-name"><span>${name}</span></div>
-  ${price ? `<span class="sales"><span class="value" content="${price}">${price} €</span></span>` : ''}
-  <input class="quantity" type="number" data-pid="${pid}" data-uuid="${uuid}" value="${qty}">
-  <button class="remove-product" data-pid="${pid}" data-uuid="${uuid}" data-name="${name}"></button>
-</div>`).join('\n')}<p class="grand-total"> ${total} </p></body></html>`;
+${lines.map(({ pid, uuid, qty, name, price }) => `<div class="card product-info uuid-${uuid} auc-cart__product-card" data-pid="${pid}" data-gtm="${attr({ name, ...(price && { price: String(price) }) })}">
+  <button class="auc-cart__remove-product" data-pid="${pid}" data-uuid="${uuid}"></button>
+  <input class="auc-qty-selector__group__input auc-js-update-product-quantity" type="number" value="${qty}.0" data-uuid="${uuid}">
+</div>`).join('\n')}<p class="text-right basket-total"> ${total} </p></body></html>`;
 
 // A fake auchan.pt: keeps a basket in memory and records every call.
 function fakeSite({ lines = [], reject = false, ignoreWrites = false } = {}) {
@@ -28,7 +29,6 @@ function fakeSite({ lines = [], reject = false, ignoreWrites = false } = {}) {
       basket.set(form.pid, { ...line, qty: line.qty + Number(form.quantity) });
       return json({ error: false, quantityTotal: 1 });
     }
-    if (action === 'Cart-UpdateQuantity') { basket.get(q.pid).qty = Number(q.quantity); return json({ items: [] }); }
     if (action === 'Cart-RemoveProductLineItem') { basket.delete(q.pid); return json({ basket: {} }); }
     throw new Error(`unexpected ${path}`);
   };
@@ -50,6 +50,14 @@ test('parseCart reads lines, quantities, prices, total and the CSRF token', () =
   assert.deepEqual(parseCart('<html><body></body></html>'), { items: [], total: null, csrf: null });
 });
 
+test('parseCart reads the real auchan.pt cart page', () => {
+  const real = readFileSync(new URL('./fixtures/carrinho.html', import.meta.url), 'utf8');
+  const cart = parseCart(real);
+  assert.deepEqual(cart.items, [{ product_id: '3010403', uuid: '715067d4218764863dbd058497', name: 'LEITE UHT AUCHAN MEIO GORDO 1L', quantity: 2, price: 0.85 }]);
+  assert.equal(cart.total, '1,80 €');
+  assert.equal(cart.csrf, 'TOKEN');
+});
+
 test('publicCart is the contract shape and never carries tokens or line ids', () => {
   const unpriced = { pid: '11885', uuid: 'def', qty: 1, name: 'Leite Mimosa' };
   const cart = publicCart(parseCart(cartHtml([milk, unpriced])));
@@ -66,7 +74,7 @@ test('publicCart is the contract shape and never carries tokens or line ids', ()
 });
 
 test('only cart actions exist: there is no way to reach checkout or payment', () => {
-  assert.deepEqual(CART_ACTIONS, ['Cart-Show', 'Cart-AddProduct', 'Cart-UpdateQuantity', 'Cart-RemoveProductLineItem']);
+  assert.deepEqual(CART_ACTIONS, ['Cart-Show', 'Cart-AddProduct', 'Cart-RemoveProductLineItem']);
   for (const action of ['CheckoutServices-PlaceOrder', 'Checkout-Begin', 'Order-Confirm', 'Payment-Submit']) {
     assert.throws(() => cartPath(action), /não permitida/);
   }
@@ -90,12 +98,24 @@ test('addToCart posts once, with the CSRF token, and confirms the new quantity',
   assert.match(posts[0].path, /Sites-AuchanPT-Site\/pt_PT\/Cart-AddProduct$/);
 });
 
-test('updateCartItem sets a quantity, and zero removes the line', async () => {
+test('updateCartItem sets a quantity with add and remove, and zero removes the line', async () => {
   const site = fakeSite({ lines: [milk] });
+  const writes = () => site.calls.filter(c => c.method === 'POST' || /Remove/.test(c.path)).map(c => c.path.split('/').pop().split('?')[0] + (c.form ? ':' + c.form.quantity : ''));
+
   assert.equal((await updateCartItem(site, '3010403', 4)).cart_quantity, 4);
-  assert.match(site.calls.find(c => c.path.includes('UpdateQuantity')).path, /pid=3010403&uuid=abc&csrf_token=tok123&quantity=4/);
+  assert.deepEqual(writes(), ['Cart-AddProduct:2'], 'two more units are added');
+
+  site.calls.length = 0;
+  assert.equal((await updateCartItem(site, '3010403', 1)).cart_quantity, 1);
+  assert.deepEqual(writes(), ['Cart-RemoveProductLineItem', 'Cart-AddProduct:1'], 'fewer units remove the line and add the new amount');
+
+  site.calls.length = 0;
+  assert.equal((await updateCartItem(site, '3010403', 1)).cart_quantity, 1);
+  assert.deepEqual(writes(), [], 'the same quantity writes nothing');
+
   assert.equal((await updateCartItem(site, '3010403', 0)).cart_quantity, 0);
   assert.equal((await getCart(site)).items.length, 0);
+  assert.ok(!site.calls.some(c => c.path.includes('UpdateQuantity')), 'the route that answers 404 is never called');
 });
 
 test('a product not in the cart is reported without writing', async () => {

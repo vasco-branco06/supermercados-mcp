@@ -1,91 +1,175 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { loadCredentials, parseEnvFile } from '../src/credentials.js';
 import { createQueue } from '../src/reliability.js';
 import { createSession } from '../src/session.js';
 import { PingoDoceServer } from '../src/index.js';
 
-const EMAIL = 'vasco@example.com';
-const PASSWORD = 'segredo-123';
+const COOKIES = [{ name: 'dwsid', value: 'session-cookie', domain: 'www.pingodoce.pt', path: '/' }];
 
-// Minimal stand-in for Playwright's chromium. Logged out until the login form is submitted
-// with the right password. Simulated; the real selectors are only checked live.
-function fakePlaywright({ acceptLogin = true } = {}) {
-  const state = { loggedIn: false, filled: {}, launches: 0, closed: 0, requests: [] };
-  const response = (status, json = null) => ({ status: () => status, json: async () => json });
-  const context = {
-    addCookies: async () => {},
-    cookies: async () => [{ name: 'dwsid', value: 'session-cookie', domain: 'www.pingodoce.pt', path: '/' }],
-    newPage: async () => ({
-      goto: async () => {},
-      locator: () => ({ click: async () => {}, first: () => ({ click: async () => { if (acceptLogin && state.filled['input[name="loginPassword"]'] === PASSWORD) state.loggedIn = true; } }) }),
-      fill: async (selector, value) => { state.filled[selector] = value; },
-      waitForResponse: async () => {},
-      close: async () => {},
-    }),
-    request: {
-      get: async (url) => {
-        state.requests.push(url);
-        if (url.endsWith('Account-Show')) return response(state.loggedIn ? 200 : 302);
-        return response(200, { items: [], totals: { grandTotal: '0,00 €' } });
-      },
-      post: async (url, options) => { state.requests.push(url); return response(200, { error: false, cart: { items: [{ id: options.form.pid, quantity: options.form.quantity, UUID: 'u' }] } }); },
+const response = (status, json = null) => ({ status: () => status, json: async () => json });
+
+// Minimal stand-in for Playwright. `loggedIn()` decides what the account page says.
+// Simulated; the real login page is only checked live, by a person.
+function fakePlaywright({ loggedIn = () => true, missingChannels = [], windowClosesAfter = Infinity, afterLoginUrl = 'https://www.pingodoce.pt/home/' } = {}) {
+  const launches = [];
+  const apis = [];
+  const state = { polls: 0, urlCalls: 0, windowClosed: 0, requests: [] };
+  const requester = () => ({
+    get: async (url) => {
+      state.requests.push(url);
+      if (url.includes('Account-Show')) return response(loggedIn() ? 200 : 302);
+      return response(200, { items: [], totals: { grandTotal: '0,00 €' } });
     },
+    post: async (url, options) => {
+      state.requests.push(url);
+      return response(200, { error: false, cart: { items: [{ id: options.form.pid, quantity: options.form.quantity, UUID: 'u' }] } });
+    },
+    dispose: async () => {},
+  });
+  return {
+    launches, apis, state,
+    load: async () => ({
+      chromium: {
+        launch: async (options) => {
+          launches.push(options);
+          if (options.channel ? missingChannels.includes(options.channel) : missingChannels.includes('bundled')) throw new Error('not installed');
+          let onDisconnect;
+          return {
+            on: (event, fn) => { if (event === 'disconnected') onDisconnect = fn; },
+            close: async () => { state.windowClosed++; },
+            newContext: async () => ({
+              request: { get: async (url) => { state.polls++; if (state.polls >= windowClosesAfter) onDisconnect?.(); return requester().get(url); } },
+              cookies: async () => COOKIES,
+              newPage: async () => ({
+                goto: async () => {},
+                locator: () => ({ click: async () => {} }),
+                url: () => (state.urlCalls++ >= 1 ? afterLoginUrl : 'https://www.pingodoce.pt/on/demandware.store/Sites-pingo-doce-Site/default/Login-Show'),
+              }),
+            }),
+          };
+        },
+      },
+      request: {
+        newContext: async (options) => { const api = Object.assign(requester(), { options }); apis.push(api); return api; },
+      },
+    }),
   };
-  const browser = { on: () => {}, newContext: async () => context, close: async () => { state.closed++; } };
-  return { state, load: async () => ({ chromium: { launch: async () => { state.launches++; return browser; } } }) };
 }
 
-const tempDir = () => mkdtempSync(join(tmpdir(), 'pd-session-'));
+const tempFile = (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'pd-session-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  return join(dir, 'cookies.json');
+};
+const quick = { throttle: createQueue(), version: '1', pollMs: 1, log() {} };
 
-test('parseEnvFile reads KEY=VALUE lines and ignores comments', () => {
-  assert.deepEqual(parseEnvFile('# c\nPINGODOCE_EMAIL = a@b.pt\r\nPINGODOCE_PASSWORD="x y"\n\n'), { PINGODOCE_EMAIL: 'a@b.pt', PINGODOCE_PASSWORD: 'x y' });
-});
-
-test('loadCredentials needs both values in credentials.env', () => {
-  const dir = tempDir();
-  const env = { PINGODOCE_STATE_DIR: dir };
-  assert.equal(loadCredentials(env), null);
-  writeFileSync(join(dir, 'credentials.env'), `PINGODOCE_EMAIL=${EMAIL}\n`);
-  assert.equal(loadCredentials(env), null);
-  writeFileSync(join(dir, 'credentials.env'), `PINGODOCE_EMAIL=${EMAIL}\nPINGODOCE_PASSWORD=${PASSWORD}\n`);
-  assert.deepEqual(loadCredentials(env), { email: EMAIL, password: PASSWORD });
-});
-
-test('logs in once, saves cookies and reuses the session', async () => {
-  const dir = tempDir();
+test('a saved session that still works opens no browser window', async (t) => {
+  const cookieFile = tempFile(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
   const fake = fakePlaywright();
-  const session = createSession({ credentials: { email: EMAIL, password: PASSWORD }, cookieFile: join(dir, 'cookies.json'), throttle: createQueue(), version: '1', loadPlaywright: fake.load });
+  const session = createSession({ cookieFile, loadPlaywright: fake.load, ...quick });
   assert.equal((await session.request('Cart-Get')).status, 200);
+  assert.equal(fake.launches.length, 0);
+  assert.deepEqual(fake.apis[0].options.storageState.cookies, COOKIES);
+  assert.equal(await session.login(), 'saved');
+});
+
+test('without a session a visible window opens, the cookies are saved and the window closes', async (t) => {
+  const cookieFile = tempFile(t);
+  const fake = fakePlaywright();
+  const session = createSession({ cookieFile, loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'window');
+  assert.deepEqual(fake.launches[0], { headless: false, channel: 'msedge' });
+  assert.equal(fake.state.windowClosed, 1);
+  const saved = readFileSync(cookieFile, 'utf8');
+  assert.deepEqual(JSON.parse(saved), COOKIES);
+  assert.deepEqual(fake.apis.at(-1).options.storageState.cookies, COOKIES);
+  assert.equal(await session.login(), 'saved');
   await session.request('Cart-Get');
-  assert.equal(fake.state.launches, 1);
-  assert.equal(fake.state.filled['input[name="loginEmail"]'], EMAIL);
-  const cookies = readFileSync(join(dir, 'cookies.json'), 'utf8');
-  assert.match(cookies, /dwsid/);
-  assert.doesNotMatch(cookies, new RegExp(PASSWORD));
-  await session.close();
-  assert.equal(fake.state.closed, 1);
+  assert.equal(fake.launches.length, 1, 'one window only');
 });
 
-test('a failed login gives a fixed message without the credentials', async () => {
-  const fake = fakePlaywright({ acceptLogin: false });
-  const session = createSession({ credentials: { email: EMAIL, password: PASSWORD }, cookieFile: join(tempDir(), 'cookies.json'), throttle: createQueue(), version: '1', loadPlaywright: fake.load });
-  await assert.rejects(session.request('Cart-Get'), (e) => /o login falhou/.test(e.message) && !e.message.includes(EMAIL) && !e.message.includes(PASSWORD));
+test('Edge missing falls back to Chrome, then to the bundled Chromium', async (t) => {
+  const chromeOnly = fakePlaywright({ missingChannels: ['msedge'] });
+  await createSession({ cookieFile: tempFile(t), loadPlaywright: chromeOnly.load, ...quick }).login();
+  assert.deepEqual(chromeOnly.launches.map((l) => l.channel), ['msedge', 'chrome']);
+
+  const bundled = fakePlaywright({ missingChannels: ['msedge', 'chrome'] });
+  await createSession({ cookieFile: tempFile(t), loadPlaywright: bundled.load, ...quick }).login();
+  assert.deepEqual(bundled.launches.map((l) => l.channel), ['msedge', 'chrome', undefined]);
 });
 
-test('missing Playwright gives an install hint', async () => {
-  const session = createSession({ credentials: { email: EMAIL, password: PASSWORD }, cookieFile: join(tempDir(), 'c.json'), throttle: createQueue(), version: '1', loadPlaywright: async () => { throw new Error('Cannot find package'); } });
-  await assert.rejects(session.request('Cart-Get'), /playwright install chromium/);
+test('no browser at all gives a clear message', async (t) => {
+  const none = fakePlaywright({ missingChannels: ['msedge', 'chrome', 'bundled'] });
+  const session = createSession({ cookieFile: tempFile(t), loadPlaywright: none.load, ...quick });
+  await assert.rejects(session.login(), /não encontrei o Microsoft Edge nem o Google Chrome/);
 });
 
-test('with credentials the server lists the cart tools and never echoes secrets', async () => {
-  const dir = tempDir();
-  writeFileSync(join(dir, 'credentials.env'), `PINGODOCE_EMAIL=${EMAIL}\nPINGODOCE_PASSWORD=${PASSWORD}\n`);
+test('closing the window before logging in ends with an error and saves nothing', async (t) => {
+  const cookieFile = tempFile(t);
+  const fake = fakePlaywright({ loggedIn: () => false, windowClosesAfter: 2 });
+  const session = createSession({ cookieFile, loadPlaywright: fake.load, ...quick });
+  await assert.rejects(session.login(), /a janela de login foi fechada/);
+  assert.equal(existsSync(cookieFile), false);
+});
+
+test('the person has a limited time to log in', async (t) => {
+  const fake = fakePlaywright({ loggedIn: () => false, afterLoginUrl: 'https://login.example.com/' });
+  const session = createSession({ cookieFile: tempFile(t), loadPlaywright: fake.load, loginTimeoutMs: 30, ...quick });
+  await assert.rejects(session.login(), /o login não terminou/);
+  assert.equal(fake.state.windowClosed, 1);
+});
+
+test('a session that ends while running is checked again and the call is retried once', async (t) => {
+  const cookieFile = tempFile(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const fake = fakePlaywright();
+  let expireNext = false;
+  const load = async () => {
+    const pw = await fake.load();
+    const newContext = pw.request.newContext;
+    pw.request.newContext = async (options) => {
+      const api = await newContext(options);
+      const get = api.get;
+      api.get = async (url, opts) => {
+        if (expireNext && url.includes('Cart-Get')) { expireNext = false; return response(302); }
+        return get(url, opts);
+      };
+      return api;
+    };
+    return pw;
+  };
+  const session = createSession({ cookieFile, loadPlaywright: load, ...quick });
+  assert.equal((await session.request('Cart-Get')).status, 200);
+  expireNext = true;
+  assert.equal((await session.request('Cart-Get')).status, 200, 'the second call recovers');
+  assert.equal(fake.state.requests.filter((url) => url.includes('Account-Show')).length, 2, 'the session was checked again');
+  assert.equal(fake.launches.length, 0, 'the saved session was still good, so no window');
+});
+
+test('logout deletes the saved session', async (t) => {
+  const cookieFile = tempFile(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const session = createSession({ cookieFile, loadPlaywright: fakePlaywright().load, ...quick });
+  await session.login();
+  await session.logout();
+  assert.equal(existsSync(cookieFile), false);
+});
+
+test('missing Playwright gives an install hint', async (t) => {
+  const session = createSession({ cookieFile: tempFile(t), loadPlaywright: async () => { throw new Error('nope'); }, ...quick });
+  await assert.rejects(session.login(), /falta o Playwright/);
+});
+
+test('the server lists the cart and login tools, and never echoes the session', async (t) => {
+  const cookieFile = tempFile(t);
+  const dir = join(cookieFile, '..');
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
   const fake = fakePlaywright();
   const server = new PingoDoceServer({ env: { PINGODOCE_STATE_DIR: dir }, loadPlaywright: fake.load });
   const client = new Client({ name: 'test', version: '1' });
@@ -93,14 +177,18 @@ test('with credentials the server lists the cart tools and never echoes secrets'
   await Promise.all([server.server.connect(a), client.connect(b)]);
 
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name), ['search_products', 'get_cart', 'add_to_cart', 'update_cart_item', 'close_session']);
+  assert.deepEqual(tools.map((tool) => tool.name), ['search_products', 'get_cart', 'add_to_cart', 'update_cart_item', 'login', 'logout', 'close_session']);
+  assert.ok(!tools.some((tool) => /checkout|order|pay/i.test(tool.name)));
 
   const outputs = [];
-  for (const [name, args] of [['get_cart', {}], ['add_to_cart', { product_id: '48150', quantity: 2 }], ['add_to_cart', { product_id: '../x' }], ['close_session', {}]]) {
+  for (const [name, args] of [['login', {}], ['get_cart', {}], ['add_to_cart', { product_id: '48150', quantity: 2 }], ['add_to_cart', { product_id: '../x' }], ['logout', {}], ['close_session', {}]]) {
     outputs.push((await client.callTool({ name, arguments: args })).content[0].text);
   }
-  assert.deepEqual(JSON.parse(outputs[0]), { store: 'pingo-doce', count: 0, items: [], total: '0,00 €' });
-  assert.match(outputs[1], /Adicionado ao carrinho: 48150, agora com quantidade 2/);
-  assert.match(outputs[2], /Invalid product_id/);
-  for (const out of outputs) assert.ok(!out.includes(EMAIL) && !out.includes(PASSWORD) && !out.includes('session-cookie'));
+  assert.equal(outputs[0], 'Já tens a sessão do Pingo Doce iniciada.');
+  assert.deepEqual(JSON.parse(outputs[1]), { store: 'pingo-doce', count: 0, items: [], total: '0,00 €' });
+  assert.match(outputs[2], /Adicionado ao carrinho: 48150, agora com quantidade 2/);
+  assert.match(outputs[3], /Invalid product_id/);
+  assert.match(outputs[4], /apaguei a sessão guardada/);
+  for (const out of outputs) assert.ok(!out.includes('session-cookie'));
+  assert.equal(existsSync(cookieFile), false);
 });

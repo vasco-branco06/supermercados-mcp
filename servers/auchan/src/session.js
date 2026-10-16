@@ -1,12 +1,17 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { AUCHAN_BASE, BlockedError, USER_AGENT, assertNotBlocked, throttle } from './http.js';
+import { AUCHAN_BASE, USER_AGENT, assertNotBlocked, throttle } from './http.js';
 
+// The same "Entrar" link the site shows to people.
 const LOGIN_URL = `${AUCHAN_BASE}/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Login-OAuthLogin?oauthProvider=Salesforce&oauthLoginTargetEndPoint=1`;
-const ACCOUNT_URL = `${AUCHAN_BASE}/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Account-Show`;
-const EMAIL_FIELD = 'input[type="email"], input[name="username"], input[name="email"]';
-const PASSWORD_FIELD = 'input[type="password"]';
-const SUBMIT = 'button[type="submit"], input[type="submit"]';
+// The header says whether delivery or pickup was chosen; the cart refuses everything until it is.
+const DELIVERY_URL = `${AUCHAN_BASE}/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Delivery-Header`;
+// Every page says data-authenticated="true" or "false"; the account page also answers 200 to visitors.
+const CART_URL = `${AUCHAN_BASE}/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Cart-Show`;
+// Edge ships with Windows and Chrome is on most Macs, so nothing has to be downloaded.
+const BROWSER_CHANNELS = ['msedge', 'chrome', undefined];
+const NO_PLAYWRIGHT = 'falta o Playwright; instala o pacote de novo (npm install auchan-mcp)';
+const NO_BROWSER = 'não encontrei o Microsoft Edge nem o Google Chrome para abrir a janela de login; instala um deles ou corre "npx playwright install chromium"';
 
 export function writeCookies(path, cookies) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -14,105 +19,172 @@ export function writeCookies(path, cookies) {
   chmodSync(path, 0o600);
 }
 
-// Owns the Playwright browser used for login and cart requests.
-// Playwright is imported here only, and only when a cart tool runs.
-export function createSession({ credentials, cookieFile, log = console.error }) {
-  let browser = null;
-  let context = null;
+function readCookies(path) {
+  if (!existsSync(path)) return null;
+  try {
+    const cookies = JSON.parse(readFileSync(path, 'utf8'));
+    return Array.isArray(cookies) && cookies.length ? cookies : null;
+  } catch {
+    return null;
+  }
+}
 
-  async function login(page) {
-    log('[auth] A iniciar sessão no Auchan...');
-    await throttle(() => page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }));
-    await checkChallenge(page);
-    await page.locator(EMAIL_FIELD).first().fill(credentials.email, { timeout: 15000 });
-    const password = page.locator(PASSWORD_FIELD).first();
-    if (!(await password.isVisible().catch(() => false))) {
-      await throttle(() => page.locator(SUBMIT).first().click());
+// Login is done by the person, in a normal browser window; no password ever reaches this code.
+// Only the session cookies are kept, in cookieFile. After login every cart request is plain HTTP
+// through Playwright's request client, so the window is closed as soon as the login works.
+export function createSession({
+  cookieFile,
+  log = console.error,
+  loadPlaywright = () => import('playwright'),
+  loginTimeoutMs = 5 * 60 * 1000,
+  pollMs = 3000,
+  sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+}) {
+  let playwright = null;
+  let api = null;
+  let loggedIn = false;
+  let pending = null;
+
+  async function pw() {
+    if (!playwright) {
+      try { playwright = await loadPlaywright(); } catch { throw new Error(NO_PLAYWRIGHT); }
     }
-    await password.fill(credentials.password, { timeout: 15000 });
-    await throttle(() => page.locator(SUBMIT).first().click());
-    await page.waitForURL(url => url.hostname === 'www.auchan.pt', { timeout: 30000 }).catch(async () => {
-      await checkChallenge(page);
-      throw new Error('o login não terminou; confirma o email e a palavra-passe em credentials.env');
+    return playwright;
+  }
+
+  async function openApi(cookies) {
+    await api?.dispose().catch(() => {});
+    api = await (await pw()).request.newContext({
+      userAgent: USER_AGENT,
+      locale: 'pt-PT',
+      storageState: { cookies, origins: [] },
     });
-    writeCookies(cookieFile, await context.cookies());
-    log('[auth] Sessão iniciada.');
   }
 
-  async function checkChallenge(page) {
-    const captcha = await page.locator('iframe[src*="captcha"], .g-recaptcha, .h-captcha, #px-captcha').count();
-    if (captcha) throw new BlockedError('o site pediu uma verificação anti-robô (CAPTCHA) no login; entra uma vez no auchan.pt pelo browser e tenta mais tarde');
-    assertNotBlocked(200, await page.content());
-  }
-
-  async function open() {
-    if (context) return;
-    let chromium;
-    try {
-      ({ chromium } = await import('playwright'));
-    } catch {
-      throw new Error('falta o Playwright; corre "npm install" e "npx playwright install chromium" na pasta servers/auchan');
-    }
-    browser = await chromium.launch({ headless: process.env.AUCHAN_LOGIN_HEADLESS !== 'false' });
-    browser.on('disconnected', () => { browser = context = null; });
-    context = await browser.newContext({ userAgent: USER_AGENT, locale: 'pt-PT' });
-    if (existsSync(cookieFile)) {
-      try {
-        await context.addCookies(JSON.parse(readFileSync(cookieFile, 'utf8')));
-      } catch {
-        log('[auth] Não consegui ler as cookies guardadas; vou iniciar sessão de novo.');
-      }
-    }
-    // Expired cookies would silently fill an anonymous basket, so check the account page first.
-    if (await isLoggedIn()) return;
-    const page = await context.newPage();
-    try { await login(page); } finally { await page.close().catch(() => {}); }
-    if (!(await isLoggedIn())) {
-      await close();
-      throw new Error('o login não ficou ativo; confirma o email e a palavra-passe em credentials.env');
-    }
-  }
-
-  async function isLoggedIn() {
-    const res = await throttle(() => context.request.get(ACCOUNT_URL, { timeout: 15000 }));
+  // An expired session would silently fill an anonymous basket, so look at the page's own flag first.
+  async function isLoggedIn(requester) {
+    const res = await throttle(() => requester.get(CART_URL, { timeout: 15000 }));
     assertNotBlocked(res.status(), '');
-    return res.ok() && !/login/i.test(new URL(res.url()).pathname);
+    return res.ok() && /data-authenticated="true"/.test(await res.text());
   }
 
-  const call = (fn) => throttle(async () => {
-    const res = await fn();
+  // Auchan only accepts cart changes after the person chose home delivery or pickup (postal code).
+  async function hasDeliveryContext(requester) {
+    const res = await throttle(() => requester.get(DELIVERY_URL, { timeout: 15000 }));
+    assertNotBlocked(res.status(), '');
+    return res.ok() && /data-has-context="true"/.test(await res.text());
+  }
+
+  async function launchWindow(chromium) {
+    for (const channel of BROWSER_CHANNELS) {
+      try {
+        return await chromium.launch({ headless: false, ...(channel && { channel }) });
+      } catch { /* try the next browser */ }
+    }
+    throw new Error(NO_BROWSER);
+  }
+
+  async function interactiveLogin(savedCookies = null) {
+    const { chromium } = await pw();
+    const browser = await launchWindow(chromium);
+    const closed = new Promise(resolve => browser.on('disconnected', () => resolve('closed')));
+    try {
+      const context = await browser.newContext({ locale: 'pt-PT' });
+      // With a saved login only the delivery choice is missing, so open the site instead of the login page.
+      if (savedCookies) await context.addCookies(savedCookies);
+      const page = await context.newPage();
+      log(savedCookies
+        ? '[auth] Abri uma janela do browser: escolhe a entrega ou o levantamento no Auchan.'
+        : '[auth] Abri uma janela do browser: faz o login no Auchan e escolhe a entrega ou o levantamento.');
+      await throttle(() => page.goto(savedCookies ? `${AUCHAN_BASE}/pt/` : LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }));
+      const deadline = Date.now() + loginTimeoutMs;
+      while (Date.now() < deadline) {
+        if (await Promise.race([closed, sleep(pollMs).then(() => 'tick')]) === 'closed') {
+          throw new Error('a janela de login foi fechada antes de o login terminar; tenta de novo');
+        }
+        // Only ask the site once the window is back on auchan.pt outside the login pages.
+        const url = new URL(page.url());
+        if (url.hostname !== 'www.auchan.pt' || /login/i.test(url.pathname)) continue;
+        if (await isLoggedIn(context.request) && await hasDeliveryContext(context.request)) {
+          const cookies = await context.cookies();
+          writeCookies(cookieFile, cookies);
+          log('[auth] Sessão iniciada.');
+          return cookies;
+        }
+      }
+      throw new Error('o login não terminou em 5 minutos; tenta de novo');
+    } finally {
+      await browser.close().catch(() => {});
+    }
+  }
+
+  // Returns 'saved' when the stored session still works, 'window' when the person had to log in.
+  function ensureSession() {
+    if (api && loggedIn) return Promise.resolve('saved');
+    pending ??= (async () => {
+      try {
+        const saved = readCookies(cookieFile);
+        if (saved) {
+          await openApi(saved);
+          const logged = await isLoggedIn(api);
+          if (logged && await hasDeliveryContext(api)) { loggedIn = true; return 'saved'; }
+          log(logged ? '[auth] Falta escolher a entrega.' : '[auth] A sessão guardada expirou.');
+          await openApi(await interactiveLogin(logged ? saved : null));
+          loggedIn = true;
+          return 'window';
+        }
+        await openApi(await interactiveLogin());
+        loggedIn = true;
+        return 'window';
+      } finally {
+        pending = null;
+      }
+    })();
+    return pending;
+  }
+
+  const call = (method, path, form) => throttle(async () => {
+    const options = form ? { form, timeout: 15000 } : { timeout: 15000 };
+    const res = await api[method](new URL(path, AUCHAN_BASE).href, options);
     const text = await res.text();
     assertNotBlocked(res.status(), text);
-    return { status: res.status(), text };
+    return { status: res.status(), text, url: res.url() };
   });
+
+  async function request(method, path, form) {
+    await ensureSession();
+    let result = await call(method, path, form);
+    if (/login/i.test(new URL(result.url).pathname)) {
+      // The session ended while the server was running: ask the person to log in again, once.
+      loggedIn = false;
+      await ensureSession();
+      result = await call(method, path, form);
+      if (/login/i.test(new URL(result.url).pathname)) throw new Error('o site não aceitou a sessão; tenta usar a ferramenta login de novo');
+    }
+    return { status: result.status, text: result.text };
+  }
 
   // The `site` interface cart.js expects: relative paths on auchan.pt only.
   const site = {
-    get: (path) => scrubbed(async () => {
-      await open();
-      return call(() => context.request.get(new URL(path, AUCHAN_BASE).href, { timeout: 15000 }));
-    }),
-    post: (path, form) => scrubbed(async () => {
-      await open();
-      return call(() => context.request.post(new URL(path, AUCHAN_BASE).href, { form, timeout: 15000 }));
-    }),
+    get: path => request('get', path),
+    post: (path, form) => request('post', path, form),
   };
 
-  // Credentials must never reach an error message, a log or a tool response.
-  async function scrubbed(fn) {
-    try {
-      return await fn();
-    } catch (error) {
-      for (const secret of [credentials.email, credentials.password]) error.message = String(error.message).split(secret).join('***');
-      throw error;
-    }
+  async function login() {
+    return ensureSession();
   }
 
   async function close() {
-    const current = browser;
-    browser = context = null;
-    if (current) await current.close().catch(() => {});
+    const current = api;
+    api = null;
+    loggedIn = false;
+    await current?.dispose().catch(() => {});
   }
 
-  return { site, close };
+  async function logout() {
+    await close();
+    rmSync(cookieFile, { force: true });
+  }
+
+  return { site, login, logout, close };
 }

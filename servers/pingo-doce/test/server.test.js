@@ -21,10 +21,10 @@ async function connect({ body = html, status = 200 } = {}) {
 
 const search = (client, args) => client.callTool({ name: 'search_products', arguments: args });
 
-test('without credentials only search_products and close_session are listed', async () => {
+test('the server lists search, cart, login and close_session', async () => {
   const client = await connect();
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['close_session', 'search_products']);
+  assert.deepEqual(tools.map((t) => t.name), ['search_products', 'get_cart', 'add_to_cart', 'update_cart_item', 'login', 'logout', 'close_session']);
 });
 
 test('search returns one JSON text block in the contract format', async () => {
@@ -70,10 +70,13 @@ test('invalid input is rejected', async () => {
   }
 });
 
-test('cart tools do not exist without credentials', async () => {
-  const result = await (await connect()).callTool({ name: 'add_to_cart', arguments: { product_id: '48150' } });
+test('a failed login comes back as an error sentence', async () => {
+  const env = { PINGODOCE_STATE_DIR: mkdtempSync(join(tmpdir(), 'pd-')) };
+  const session = { request: async () => ({ status: 200, json: null }), login: async () => { throw new Error('pingo-doce: a janela de login foi fechada antes de o login terminar; tenta de novo'); }, logout: async () => {}, close: async () => {} };
+  const server = new PingoDoceServer({ env, session });
+  const result = await server.callTool('login', {});
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /Unknown tool/);
+  assert.match(result.content[0].text, /^Error: pingo-doce: a janela de login foi fechada/);
 });
 
 test('close_session always answers', async () => {

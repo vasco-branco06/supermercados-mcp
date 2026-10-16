@@ -21,34 +21,17 @@ O `robots.txt` do Auchan pede que a pesquisa não seja usada de forma automátic
 
 ## Instalar
 
-Precisas do Node.js 20.18.1 ou mais recente. Na pasta `servers/auchan`:
-
-```
-npm install
-```
-
-Para o carrinho, instala também o browser que o login usa:
-
-```
-npx playwright install chromium
-```
-
-e cria `%USERPROFILE%\.auchan-mcp\credentials.env` (no macOS/Linux, `~/.auchan-mcp/credentials.env`) com o teu login do Auchan. A pesquisa funciona sem este ficheiro.
-
-```
-AUCHAN_EMAIL=tu@exemplo.pt
-AUCHAN_PASSWORD=a-tua-palavra-passe
-```
-
-Depois junta o servidor ao teu cliente MCP e reinicia-o:
+Precisas do Node.js 20.18.1 ou mais recente e de um cliente MCP, por exemplo o Claude Code. Junta o servidor e reinicia o cliente:
 
 ```json
 {
   "mcpServers": {
-    "auchan": { "command": "node", "args": ["C:/caminho/para/servers/auchan/src/index.js"] }
+    "auchan": { "command": "npx", "args": ["-y", "auchan-mcp"] }
   }
 }
 ```
+
+A pesquisa funciona logo, sem conta. Para o carrinho não crias nada: quando o assistente precisar dele, abre-se uma janela do Edge ou do Chrome na página de login do Auchan. Entras tu, a janela fecha e ficas ligado. A palavra-passe nunca passa pelo servidor nem fica guardada: só a sessão, no teu computador (`%USERPROFILE%\.auchan-mcp\cookies.json`). Se aparecer um CAPTCHA, resolves tu na janela.
 
 ## Usar
 
@@ -59,13 +42,12 @@ Pede coisas como "procura leite meio-gordo no Auchan" ou "junta 2 pacotes ao car
 | `search_products` | Pesquisar o catálogo (devolve JSON) |
 | `get_cart` | Ver o carrinho |
 | `add_to_cart` / `update_cart_item` | Juntar um produto / mudar a quantidade (0 tira-o) |
-| `close_session` | Fechar o browser |
-
-As ferramentas do carrinho só aparecem quando existe o ficheiro de credenciais.
+| `login` | Ligar a tua conta: abre a janela de login (as ferramentas do carrinho fazem-no sozinhas se for preciso) |
+| `logout` | Desligar a conta: apaga a sessão guardada neste computador |
+| `close_session` | Libertar recursos |
 
 ## Mais
 
-- **Definições:** caminhos e opções em [`.env.example`](.env.example).
 - **Problemas:** [docs/troubleshooting.md](docs/troubleshooting.md).
 - **Testes:** `npm test` corre sem internet. `LIVE=1` liga um teste que faz um pedido real ao Auchan.pt (no PowerShell: `$env:LIVE=1; npm test`).
 

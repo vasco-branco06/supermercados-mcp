@@ -6,6 +6,8 @@ export const USER_AGENT = `supermercados-mcp/${VERSION} (auchan-mcp; +https://gi
 
 const BLOCK_MARKERS = /captcha|cf-challenge|just a moment\.\.\.|_incapsula_|datadome|perimeterx|px-captcha|access denied/i;
 
+const CHALLENGE_MAX_BYTES = 30000;
+
 export class BlockedError extends Error {}
 
 // Serialises calls and keeps at least `intervalMs` between the start of each one.
@@ -30,7 +32,8 @@ export const throttle = createThrottle();
 // Never works around a block: a 403/429 or a challenge page ends the request with an error.
 export function assertNotBlocked(status, body = '') {
   if (status === 403 || status === 429) throw new BlockedError(`o site bloqueou o pedido (HTTP ${status}); tenta mais tarde`);
-  if (BLOCK_MARKERS.test(body) && !body.includes('data-pid=')) {
+  // A challenge page is small. Normal pages (the cart has a harmless 'auc-recaptcha-check' component) are not.
+  if (body.length < CHALLENGE_MAX_BYTES && BLOCK_MARKERS.test(body) && !body.includes('data-pid=')) {
     throw new BlockedError('o site pediu uma verificação anti-robô (CAPTCHA); abre o auchan.pt no browser e tenta mais tarde');
   }
 }

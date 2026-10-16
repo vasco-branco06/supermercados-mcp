@@ -7,18 +7,17 @@ Vale para os três servidores: `continente-mcp` (do David Marques, não alterado
 | Ferramenta | Parâmetros | Quando existe |
 |---|---|---|
 | `search_products` | `query` (texto, 1 a 250 caracteres, sem caracteres de controlo), `limit` (inteiro 1 a 50, por omissão 10) | sempre, sem login |
-| `get_cart` | nenhum | só com credenciais |
-| `add_to_cart` | `product_id` (texto), `quantity` (número maior que 0, por omissão 1) | só com credenciais |
-| `update_cart_item` | `product_id`, `quantity` (0 remove a linha) | só com credenciais |
+| `get_cart` | nenhum | sempre (pede login se não houver sessão) |
+| `add_to_cart` | `product_id` (texto), `quantity` (número maior que 0, por omissão 1) | sempre (pede login se não houver sessão) |
+| `update_cart_item` | `product_id`, `quantity` (0 remove a linha) | sempre (pede login se não houver sessão) |
+| `login` | nenhum | sempre; só Pingo Doce e Auchan |
+| `logout` | nenhum | sempre; só Pingo Doce e Auchan |
 | `close_session` | nenhum | sempre |
 
 Não existe nenhuma ferramenta para finalizar a encomenda ou pagar, em nenhum dos três. Favoritos e histórico (`get_favorites`, `refresh_favorites`, `get_order_history`, `get_most_bought`) são só do Continente e ficam fora da v1 nos outros dois.
 
-As ferramentas do carrinho só são registadas se existir o ficheiro de credenciais do servidor:
-- Pingo Doce: `~/.pingodoce-mcp/credentials.env` com `PINGODOCE_EMAIL` e `PINGODOCE_PASSWORD`.
-- Auchan: `~/.auchan-mcp/credentials.env` com `AUCHAN_EMAIL` e `AUCHAN_PASSWORD`.
-- O estado e as cookies ficam na mesma pasta (`cookies.json`). Nunca em logs, nem em respostas, nem no git.
-- O Continente regista as ferramentas do carrinho sempre; a skill trata essa diferença.
+No Pingo Doce e no Auchan não há ficheiros de credenciais. Quando uma ferramenta do carrinho precisa de sessão (ou quando se chama `login`), abre-se uma janela do browser que a pessoa já tem (Edge ou Chrome) na página de login do supermercado; a pessoa entra ela mesma, a janela fecha e só ficam as cookies da sessão em `~/.pingodoce-mcp/cookies.json` ou `~/.auchan-mcp/cookies.json`. A palavra-passe nunca passa pelo servidor. `logout` apaga essa sessão. Nunca há cookies, tokens nem credenciais nas respostas nem nos registos.
+- O Continente (servidor do David) regista as ferramentas do carrinho sempre e continua a pedir `~/.continente/credentials.env`; a skill trata essa diferença.
 
 ## Formato do produto
 

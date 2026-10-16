@@ -19,34 +19,17 @@ O `robots.txt` do pingodoce.pt pede que a pesquisa não seja acedida de forma au
 
 ## Instalar
 
-Precisa do Node.js 20.18.1 ou mais recente. Na pasta do servidor:
-
-```bash
-npm install
-```
-
-A pesquisa já funciona. Para o carrinho, instala o browser que o servidor usa no login:
-
-```bash
-npx playwright install chromium
-```
-
-E cria o ficheiro `~/.pingodoce-mcp/credentials.env` (no Windows, `%USERPROFILE%\.pingodoce-mcp\credentials.env`) com o teu login do Pingo Doce:
-
-```
-PINGODOCE_EMAIL=tu@exemplo.pt
-PINGODOCE_PASSWORD=a-tua-palavra-passe
-```
-
-Depois junta o servidor ao teu cliente MCP e reinicia-o:
+Precisa do Node.js 20.18.1 ou mais recente e de um cliente MCP, por exemplo o Claude Code. Junta o servidor e reinicia o cliente:
 
 ```json
 {
   "mcpServers": {
-    "pingo-doce": { "command": "node", "args": ["/caminho/absoluto/para/servers/pingo-doce/src/index.js"] }
+    "pingo-doce": { "command": "npx", "args": ["-y", "pingo-doce-mcp"] }
   }
 }
 ```
+
+A pesquisa funciona logo, sem conta. Para o carrinho não crias nada: quando o assistente precisar dele, abre-se uma janela do Edge ou do Chrome na página de login do Pingo Doce. Entras tu, a janela fecha e ficas ligado. A palavra-passe nunca passa pelo servidor nem fica guardada: só a sessão, no teu computador (`%USERPROFILE%\.pingodoce-mcp\cookies.json`). Se aparecer um CAPTCHA, resolves tu na janela.
 
 ## Usar
 
@@ -57,15 +40,14 @@ Pede ao assistente coisas como "procura leite meio gordo no Pingo Doce" ou "põe
 | `search_products` | Pesquisar o catálogo (sem login) |
 | `get_cart` | Ver o carrinho |
 | `add_to_cart` / `update_cart_item` | Adicionar um produto / mudar a quantidade (zero remove) |
-| `close_session` | Fechar o browser do carrinho |
-
-As três ferramentas do carrinho só aparecem quando existe o `credentials.env` com os dois valores.
+| `login` | Ligar a tua conta: abre a janela de login (as ferramentas do carrinho fazem-no sozinhas se for preciso) |
+| `logout` | Desligar a conta: apaga a sessão guardada neste computador |
+| `close_session` | Libertar recursos |
 
 A pesquisa responde com JSON: `{ "store": "pingo-doce", "query": "leite", "count": 3, "products": [...] }`. O que o site não mostra fica `null`; nenhum preço é inventado.
 
 ## Mais
 
-- **Definições:** caminhos alternativos em [`.env.example`](.env.example).
 - **Problemas:** [docs/troubleshooting.md](docs/troubleshooting.md).
 - **Testes:** `npm test` corre sem internet. `LIVE=1 npm test` faz uma pesquisa real ao site.
 

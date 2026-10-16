@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio';
 
 const PIPELINE = '/on/demandware.store/Sites-AuchanPT-Site/pt_PT/';
 // The only site actions this server may call. There is no checkout, order or payment action, on purpose.
-export const CART_ACTIONS = ['Cart-Show', 'Cart-AddProduct', 'Cart-UpdateQuantity', 'Cart-RemoveProductLineItem'];
+export const CART_ACTIONS = ['Cart-Show', 'Cart-AddProduct', 'Cart-RemoveProductLineItem'];
 
 export function cartPath(action, params = {}) {
   if (!CART_ACTIONS.includes(action)) throw new Error(`ação não permitida: ${action}`);
@@ -25,26 +25,31 @@ export function validateCartInput(name, args) {
 }
 
 // Cart page HTML -> { items: [{ product_id, uuid, name, quantity, price }], total, csrf }.
-// Every line item control on the cart page carries data-pid and data-uuid.
-// uuid and csrf are for the site requests only; publicCart() is what tools may return.
+// Verified against the real auchan.pt cart page (test/fixtures/carrinho.html): each line is an
+// .auc-cart__product-card with data-pid, a data-gtm JSON (name, unit price) and a quantity input
+// carrying the line's data-uuid. uuid and csrf are for the site requests only; publicCart() is
+// what tools may return.
 export function parseCart(html) {
   const $ = cheerio.load(html);
-  const lines = new Map();
-  $('[data-pid][data-uuid]').each((_, el) => {
+  const items = [];
+  $('.auc-cart__product-card[data-pid]').each((_, el) => {
     const $el = $(el);
-    const uuid = $el.attr('data-uuid');
-    const line = lines.get(uuid) ?? { product_id: $el.attr('data-pid'), uuid, name: null, quantity: null, price: null };
-    const value = $el.is('select') ? $el.find('option[selected]').attr('value') ?? $el.val() : $el.attr('value');
-    if ($el.is('input, select') && line.quantity === null && value !== undefined) line.quantity = Number(value);
-    const $line = $el.closest('.product-info, .line-item, .card');
-    line.name ??= $el.attr('data-name') || $line.find('.line-item-name').first().text().replace(/\s+/g, ' ').trim() || null;
-    const price = Number($line.find('.sales .value[content]').first().attr('content') || NaN);
-    if (line.price === null && Number.isFinite(price) && price > 0) line.price = price;
-    lines.set(uuid, line);
+    const input = $el.find('input.auc-js-update-product-quantity').first();
+    const uuid = input.attr('data-uuid') || $el.find('[data-uuid]').first().attr('data-uuid') || null;
+    let gtm = {};
+    try { gtm = JSON.parse($el.attr('data-gtm') || '{}'); } catch {}
+    const price = Number(gtm.price);
+    items.push({
+      product_id: $el.attr('data-pid'),
+      uuid,
+      name: gtm.name || $el.find('.auc-product-tile__name a, .line-item-name').first().text().replace(/s+/g, ' ').trim() || null,
+      quantity: Number(input.attr('value')),
+      price: Number.isFinite(price) && price > 0 ? price : null,
+    });
   });
   const csrf = $('input[name="csrf_token"]').attr('value') || $('[data-csrf-protection-token]').attr('data-csrf-protection-token') || null;
-  const total = $('.grand-total, .grand-total-sum').first().text().replace(/\s+/g, ' ').trim() || null;
-  return { items: [...lines.values()].filter(item => Number.isFinite(item.quantity)), total, csrf };
+  const total = $('.basket-total').first().text().replace(/s+/g, ' ').trim() || null;
+  return { items: items.filter(item => item.uuid && Number.isFinite(item.quantity)), total, csrf };
 }
 
 // The get_cart response from shared/CONTRATO.md: no tokens, no line uuids.
@@ -69,6 +74,9 @@ async function sendChange(site, request) {
   const res = await request();
   let payload = null;
   try { payload = JSON.parse(res.text); } catch {}
+  if (payload?.showDeliveryOptionsModal === true) {
+    return { ok: false, error: 'o Auchan ainda precisa de saber se queres entrega ou levantamento; usa a ferramenta login e escolhe-o na janela' };
+  }
   if (res.status >= 400 || !payload || payload.error === true || payload.success === false) {
     return { ok: false, error: payload?.message || `o site recusou a alteração (HTTP ${res.status})` };
   }
@@ -95,15 +103,30 @@ export async function addToCart(site, productId, quantity) {
   return confirmQuantity(site, productId, previous + quantity);
 }
 
+const addForm = (productId, quantity, csrf) => ({ pid: productId, quantity: String(quantity), options: '[]', ...(csrf && { csrf_token: csrf }) });
+
+// The site's Cart-UpdateQuantity answers 404 (checked live on 2026-10-16, as GET and as POST), so a
+// quantity is set with the two calls that work: more units are added; fewer units remove the line
+// and add the new amount. Zero just removes it.
 export async function updateCartItem(site, productId, quantity) {
   const before = await getCart(site);
   const line = before.items.find(item => item.product_id === productId);
   if (!line) return { success: false, error: 'not_in_cart', product_id: productId, writeAttempted: false };
+  const current = quantityOf(before, productId);
+  if (quantity === current) return { success: true, product_id: productId, cart_quantity: current };
+  if (quantity > current) {
+    const sent = await sendChange(site, () => site.post(cartPath('Cart-AddProduct'), addForm(productId, quantity - current, before.csrf)));
+    if (!sent.ok) return { success: false, error: sent.error, writeAttempted: true };
+    return confirmQuantity(site, productId, quantity);
+  }
   const params = { pid: productId, uuid: line.uuid };
   if (before.csrf) params.csrf_token = before.csrf;
-  const sent = quantity === 0
-    ? await sendChange(site, () => site.get(cartPath('Cart-RemoveProductLineItem', params)))
-    : await sendChange(site, () => site.get(cartPath('Cart-UpdateQuantity', { ...params, quantity: String(quantity) })));
-  if (!sent.ok) return { success: false, error: sent.error, writeAttempted: true };
+  const removed = await sendChange(site, () => site.get(cartPath('Cart-RemoveProductLineItem', params)));
+  if (!removed.ok) return { success: false, error: removed.error, writeAttempted: true };
+  if (quantity > 0) {
+    const after = await getCart(site);
+    const sent = await sendChange(site, () => site.post(cartPath('Cart-AddProduct'), addForm(productId, quantity, after.csrf)));
+    if (!sent.ok) return { success: false, error: sent.error, writeAttempted: true };
+  }
   return confirmQuantity(site, productId, quantity);
 }

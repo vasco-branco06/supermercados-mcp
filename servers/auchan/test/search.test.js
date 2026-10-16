@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { assertNotBlocked } from '../src/http.js';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -61,6 +62,13 @@ test('searchProducts normalizes, limits, and serves the cache for 6 hours', asyn
   } finally {
     rmSync(cacheDir, { recursive: true, force: true });
   }
+});
+
+test('a normal big page that only mentions a captcha component is not a block', () => {
+  const cartPage = '<html><title>Carrinho Compras | Auchan</title><div class="auc-recaptcha-check" data-showmodal="false"></div>' + ' '.repeat(60000) + '</html>';
+  assert.doesNotThrow(() => assertNotBlocked(200, cartPage));
+  assert.throws(() => assertNotBlocked(200, '<html><title>Just a moment...</title>captcha</html>'), /anti-robô/);
+  assert.throws(() => assertNotBlocked(403, ''), /bloqueou/);
 });
 
 test('blocks and challenges stop with an error instead of being worked around', async () => {

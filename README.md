@@ -44,19 +44,15 @@ Passos:
 4. Escreve `/mcp`. Deves ver três servidores: `continente`, `pingo-doce` e `auchan`. A primeira vez que cada um arranca demora um pouco, porque o `npx` descarrega o pacote.
 5. Começa por escrever: "Faz o meu perfil".
 
-A pesquisa de produtos funciona sem conta em nenhum dos três supermercados.
+A pesquisa de produtos funciona sem conta em nenhum dos três supermercados. Não precisas de instalar mais nada para o Pingo Doce e o Auchan.
 
 ## Carrinho (opcional)
 
-Sem credenciais, o plugin só pesquisa e compara. Para o Claude pôr produtos no carrinho, cria o ficheiro de credenciais de cada supermercado que quiseres usar. Cada ficheiro tem duas linhas e fica só no teu computador.
+Pingo Doce e Auchan: quando pedes ao Claude para pôr produtos no carrinho, abre-se uma janela do browser (o Edge ou o Chrome que já tens) na página de login do supermercado. Entras tu, a janela fecha e ficas ligado, como nos outros conectores do Claude. No Auchan escolhes também, na mesma janela, se queres entrega em casa ou levantamento e o código postal, porque o site não aceita produtos no carrinho sem isso. O Auchan só deixa encomendar a partir de 20 €. Não crias nenhum ficheiro e a palavra-passe nunca passa pelo plugin: só fica a sessão, no teu computador. Se aparecer um CAPTCHA, resolves tu na janela. Para desligar, pede ao Claude para terminar a sessão (ferramenta `logout`).
 
-| Supermercado | Ficheiro (no teu utilizador do Windows) | Conteúdo |
-|---|---|---|
-| Continente | `%USERPROFILE%\.continente\credentials.env` | `CONTINENTE_EMAIL=...` e `CONTINENTE_PASSWORD=...` |
-| Pingo Doce | `%USERPROFILE%\.pingodoce-mcp\credentials.env` | `PINGODOCE_EMAIL=...` e `PINGODOCE_PASSWORD=...` |
-| Auchan | `%USERPROFILE%\.auchan-mcp\credentials.env` | `AUCHAN_EMAIL=...` e `AUCHAN_PASSWORD=...` |
+Continente: o servidor do David Marques ainda não tem login por janela, por isso o carrinho dele pede um ficheiro `%USERPROFILE%\.continente\credentials.env` com `CONTINENTE_EMAIL=...` e `CONTINENTE_PASSWORD=...`. Sem esse ficheiro, o Continente só pesquisa.
 
-Cria a pasta se não existir, guarda o ficheiro e reinicia o Claude Code. As ferramentas do carrinho (`get_cart`, `add_to_cart`, `update_cart_item`) só aparecem nos servidores do Pingo Doce e do Auchan quando existe o ficheiro. Não existe nenhuma ferramenta para finalizar a encomenda ou pagar.
+Não existe nenhuma ferramenta para finalizar a encomenda ou pagar.
 
 ## Privacidade
 
@@ -67,7 +63,8 @@ Nada sai do teu computador, exceto os pedidos aos sites dos supermercados e a co
 | O teu perfil | `%USERPROFILE%\.supermercados-mcp\perfil.md` |
 | Listas confirmadas, produtos escolhidos e preços vistos | `%USERPROFILE%\.supermercados-mcp\historico.sqlite` |
 | Resultados de pesquisa em cache (6 horas) | `%USERPROFILE%\.pingodoce-mcp\cache` e `%USERPROFILE%\.auchan-mcp\cache` |
-| Credenciais e sessão do carrinho | nas pastas `.continente`, `.pingodoce-mcp` e `.auchan-mcp` |
+| Sessão do carrinho do Pingo Doce e do Auchan (cookies) | `%USERPROFILE%\.pingodoce-mcp\cookies.json` e `%USERPROFILE%\.auchan-mcp\cookies.json` |
+| Credenciais do Continente, só se as criares | `%USERPROFILE%\.continente\credentials.env` |
 
 Para apagar tudo, no PowerShell:
 
@@ -75,7 +72,7 @@ Para apagar tudo, no PowerShell:
 Remove-Item -Recurse -Force "$env:USERPROFILE\.supermercados-mcp", "$env:USERPROFILE\.pingodoce-mcp", "$env:USERPROFILE\.auchan-mcp", "$env:USERPROFILE\.continente"
 ```
 
-Nos servidores do Pingo Doce e do Auchan, as palavras-passe e as cookies nunca aparecem nas respostas das ferramentas nem nos registos.
+O plugin nunca vê as tuas palavras-passe do Pingo Doce e do Auchan: fazes o login na janela do próprio site. As cookies nunca aparecem nas respostas das ferramentas nem nos registos.
 
 ## Limites e avisos
 

@@ -9,7 +9,6 @@ import { resolveStatePaths } from './paths.js';
 import { createQueue, createThrottle, validateToolInput } from './reliability.js';
 import { createSearcher } from './search.js';
 import { createCart } from './cart.js';
-import { loadCredentials } from './credentials.js';
 import { createSession } from './session.js';
 
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -61,6 +60,19 @@ const CART_TOOLS = [
   },
 ];
 
+const LOGIN_TOOLS = [
+  {
+    name: 'login',
+    description: 'Connect your Pingo Doce account. Opens a browser window on the pingodoce.pt login page; the person logs in there and the window closes. The password is never seen or stored. Cart tools call this automatically when there is no session.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'logout',
+    description: 'Disconnect your Pingo Doce account: deletes the saved session from this computer.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+];
+
 const CLOSE_TOOL = {
   name: 'close_session',
   description: 'Close the browser session used by the cart tools. Call when done to free resources.',
@@ -70,23 +82,17 @@ const CLOSE_TOOL = {
 const CHECKOUT_NOTE = 'A encomenda e o pagamento fazem-se no site pingodoce.pt.';
 
 export class PingoDoceServer {
-  constructor({ env = process.env, fetchImpl = fetch, now, loadPlaywright } = {}) {
+  constructor({ env = process.env, fetchImpl = fetch, now, loadPlaywright, session } = {}) {
     const paths = resolveStatePaths(env);
     this.throttle = createThrottle(1000);
     this.search = createSearcher({ version: VERSION, cacheDir: paths.cacheDir, throttle: this.throttle, fetchImpl, now });
-    // Cart tools exist only when ~/.pingodoce-mcp/credentials.env has both values.
-    const credentials = loadCredentials(env);
-    if (credentials) {
-      this.session = createSession({
-        credentials,
-        cookieFile: paths.cookieFile,
-        throttle: this.throttle,
-        version: VERSION,
-        headless: env.PINGODOCE_LOGIN_HEADLESS !== 'false',
-        ...(loadPlaywright ? { loadPlaywright } : {}),
-      });
-      this.cart = createCart({ request: this.session.request });
-    }
+    this.session = session ?? createSession({
+      cookieFile: paths.cookieFile,
+      throttle: this.throttle,
+      version: VERSION,
+      ...(loadPlaywright ? { loadPlaywright } : {}),
+    });
+    this.cart = createCart({ request: this.session.request });
     this.server = new Server({ name: 'pingo-doce-mcp', version: VERSION }, { capabilities: { tools: {} } });
     this.server.onclose = () => { void this.session?.close(); };
     this.pending = createQueue();
@@ -94,7 +100,7 @@ export class PingoDoceServer {
   }
 
   tools() {
-    return this.cart ? [SEARCH_TOOL, ...CART_TOOLS, CLOSE_TOOL] : [SEARCH_TOOL, CLOSE_TOOL];
+    return [SEARCH_TOOL, ...CART_TOOLS, ...LOGIN_TOOLS, CLOSE_TOOL];
   }
 
   setupTools() {
@@ -121,6 +127,13 @@ export class PingoDoceServer {
           return await this.handleAddToCart(args.product_id, args.quantity ?? 1);
         case 'update_cart_item':
           return await this.handleUpdateCartItem(args.product_id, args.quantity);
+        case 'login':
+          return text(await this.session.login() === 'saved'
+            ? 'Já tens a sessão do Pingo Doce iniciada.'
+            : 'Sessão do Pingo Doce iniciada. Já posso usar o teu carrinho.');
+        case 'logout':
+          await this.session.logout();
+          return text('Sessão do Pingo Doce terminada: apaguei a sessão guardada neste computador.');
         case 'close_session':
           await this.session?.close();
           return text('Sessão fechada.');

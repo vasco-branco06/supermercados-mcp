@@ -6,7 +6,7 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { addToCart, getCart, publicCart, updateCartItem, validateCartInput } from './cart.js';
 import { VERSION } from './http.js';
-import { loadCredentials, resolveStatePaths } from './paths.js';
+import { resolveStatePaths } from './paths.js';
 import { searchProducts } from './search.js';
 import { createSession } from './session.js';
 
@@ -55,6 +55,19 @@ const CART_TOOLS = [
   },
 ];
 
+const LOGIN_TOOLS = [
+  {
+    name: 'login',
+    description: 'Connect your Auchan account. Opens a browser window on the Auchan.pt login page; the person logs in there and chooses home delivery or pickup with a postal code (Auchan needs this before any cart change), then the window closes. Tell the person this before calling. The password is never seen or stored. Cart tools call this automatically when there is no session.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'logout',
+    description: 'Disconnect your Auchan account: deletes the saved session from this computer.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+];
+
 const CLOSE_TOOL = {
   name: 'close_session',
   description: 'Close the browser session. Call when done to free resources.',
@@ -88,12 +101,10 @@ export class AuchanServer {
   // `session` and `fetchImpl` are injectable so tests never touch the network or a browser.
   constructor({ env = process.env, session, fetchImpl } = {}) {
     const paths = resolveStatePaths(env);
-    const credentials = loadCredentials(env);
     this.cacheDir = paths.cacheDir;
     this.fetchImpl = fetchImpl;
-    this.cartEnabled = Boolean(credentials);
-    this.session = session ?? (credentials ? createSession({ credentials, cookieFile: paths.cookieFile }) : null);
-    this.tools = [SEARCH_TOOL, ...(this.cartEnabled ? CART_TOOLS : []), CLOSE_TOOL];
+    this.session = session ?? createSession({ cookieFile: paths.cookieFile });
+    this.tools = [SEARCH_TOOL, ...CART_TOOLS, ...LOGIN_TOOLS, CLOSE_TOOL];
 
     this.server = new Server({ name: 'auchan-mcp', version: VERSION }, { capabilities: { tools: {} } });
     this.server.onclose = () => { void this.session?.close(); };
@@ -132,6 +143,13 @@ export class AuchanServer {
                 ? `Removido do carrinho: ${product_id}. ${CHECKOUT_NOTE}`
                 : `Quantidade de ${product_id} no carrinho: ${quantity}. ${CHECKOUT_NOTE}`);
         }
+        case 'login':
+          return text(await this.session.login() === 'saved'
+            ? 'Já tens a sessão do Auchan iniciada.'
+            : 'Sessão do Auchan iniciada. Já posso usar o teu carrinho.');
+        case 'logout':
+          await this.session.logout();
+          return text('Sessão do Auchan terminada: apaguei a sessão guardada neste computador.');
         case 'close_session':
           await this.session?.close();
           return text('Session closed.');
@@ -143,7 +161,7 @@ export class AuchanServer {
 
   async start() {
     await this.server.connect(new StdioServerTransport());
-    console.error(`Auchan MCP v${VERSION} started${this.cartEnabled ? '' : ' (search only: no credentials file)'}`);
+    console.error(`Auchan MCP v${VERSION} started`);
   }
 }
 
