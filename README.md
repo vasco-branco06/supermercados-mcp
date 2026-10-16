@@ -2,10 +2,6 @@
 
 Plugin do Claude Code que planeia as refeições da semana e compara o preço do cesto no Continente, no Pingo Doce e no Auchan.
 
-![Demonstração: o Claude cria o plano da semana e compara o cesto nos três supermercados](docs/demo.gif)
-
-[Ver a demonstração em MP4](docs/demo.mp4) (48 segundos)
-
 ## O que faz
 
 Dizes ao Claude o que tens na cozinha, as restrições alimentares e o que gostas e não gostas. O plugin:
@@ -17,7 +13,7 @@ Dizes ao Claude o que tens na cozinha, as restrições alimentares e o que gosta
 
 O plugin nunca encomenda nem paga. A encomenda e o pagamento ficam sempre do teu lado, no site do supermercado.
 
-Exemplo de pedido: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês." Na demonstração acima, o cesto semanal ficou em 76,94 € no Auchan, 81,34 € no Pingo Doce e 81,81 € no Continente. Os preços mudam todos os dias.
+Exemplo de pedido: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês."
 
 ## Instalação no Windows 11
 
