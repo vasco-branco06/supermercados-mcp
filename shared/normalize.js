@@ -57,7 +57,7 @@ export function normalizePingoDoce(raw, fetched_at) {
   });
 }
 
-// raw: { product_id, name, brand, price, unit_text, available, url }
+// raw: { product_id, name, brand, price, unit_text, url }
 export function normalizeAuchan(raw, fetched_at) {
   return ProductSchema.parse({
     ...common('auchan', raw, fetched_at),
@@ -67,6 +67,6 @@ export function normalizeAuchan(raw, fetched_at) {
     ...unitFields(raw.unit_text),
     promo: null,
     minimum: null,
-    available: raw.available,
+    available: null,
   });
 }

@@ -11,7 +11,7 @@
     "unit": "l",
     "promo": null,
     "minimum": null,
-    "available": true,
+    "available": null,
     "url": "https://www.auchan.pt/pt/alimentacao/produtos-lacteos/leites/leite-uht/leite-uht-auchan-meio-gordo-1l/3010403.html",
     "fetched_at": "2026-10-16T12:00:00.000Z"
   },
@@ -27,7 +27,7 @@
     "unit": "l",
     "promo": null,
     "minimum": null,
-    "available": true,
+    "available": null,
     "url": "https://www.auchan.pt/pt/alimentacao/produtos-lacteos/leites/leite-uht/leite-mimosa-uht-meio-gordo-1l/11885.html",
     "fetched_at": "2026-10-16T12:00:00.000Z"
   },
@@ -43,7 +43,7 @@
     "unit": "l",
     "promo": null,
     "minimum": null,
-    "available": false,
+    "available": null,
     "url": "https://www.auchan.pt/pt/alimentacao/produtos-lacteos/leites/leite-uht/leite-uht-gresso-magro-1l/3704143.html",
     "fetched_at": "2026-10-16T12:00:00.000Z"
   }

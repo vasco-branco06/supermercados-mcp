@@ -46,7 +46,7 @@ O `unit` do David (texto como `0,89€/lt`) passa a `unit_price` mais `unit`.
 Limites do que cada site mostra na pesquisa (verificado em 2026-10-16):
 - Continente: sem marca, tamanho, promoção nem disponibilidade (null).
 - Pingo Doce: promoção visível como texto e preço antigo; sem disponibilidade (null).
-- Auchan: disponibilidade visível; a promoção só carrega depois por outro pedido, por isso fica null.
+- Auchan: sem disponibilidade (null) e sem promoção (null): a promoção só carrega depois por outro pedido e a pesquisa não mostra a disponibilidade.
 
 ## Resposta de `search_products`
 
@@ -65,7 +65,7 @@ Nos servidores do Pingo Doce e do Auchan, a resposta MCP tem um único bloco de 
 
 - `normalizeContinente(raw, fetched_at)`: `raw` é o objeto que o código do David devolve por produto (`name, price, currency, product_id, url, unit, minimum`).
 - `normalizePingoDoce(raw, fetched_at)`: `raw = { product_id, name, brand, price, unit_text, original_price, promo_label, url }`.
-- `normalizeAuchan(raw, fetched_at)`: `raw = { product_id, name, brand, price, unit_text, available, url }`.
+- `normalizeAuchan(raw, fetched_at)`: `raw = { product_id, name, brand, price, unit_text, url }`.
 
 Cada uma valida com o schema e falha com erro se os dados não servirem. Um preço que não passe nunca chega ao histórico.
 
