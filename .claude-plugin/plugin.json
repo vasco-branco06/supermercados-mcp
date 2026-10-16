@@ -1,7 +1,7 @@
 {
   "name": "supermercados-mcp",
   "version": "0.3.0",
-  "description": "Faz as compras do supermercado pelo Claude: procura produtos e põe-nos no carrinho do Continente, do Pingo Doce e do Auchan. Inclui skills opcionais de receitas e de comparação de preços.",
+  "description": "Faz as compras do supermercado pelo Claude: procura os produtos mais baratos, no supermercado que disseres ou comparando os três, e põe-nos no carrinho do Continente, do Pingo Doce ou do Auchan. Inclui skills opcionais de perfil e de receitas.",
   "author": {
     "name": "Vasco Branco"
   },

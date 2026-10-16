@@ -17,7 +17,7 @@ description: Planeia as refeições da semana a partir do perfil e do que a pess
 - Nada que a pessoa não coma, e nada com as alergias ou restrições do perfil. Na dúvida sobre um ingrediente, deixa-o de fora.
 - Doses para o número de pessoas do perfil.
 - Aproveita o que a pessoa já tem em casa e repete ingredientes entre receitas para gastar menos.
-- Tem em conta o orçamento semanal, mas não inventes preços: o custo real só se sabe com a skill `cesto-mais-barato`.
+- Tem em conta o orçamento semanal, mas não inventes preços: o custo real só se sabe com a skill `comprar`.
 
 ## O que mostrar
 
@@ -28,4 +28,4 @@ description: Planeia as refeições da semana a partir do perfil e do que a pess
    - Tira o que a pessoa já tem em casa.
    - Usa unidades de supermercado: kg, g, L, ml ou unidades.
    - Agrupa por secção: frutas e legumes, talho e peixaria, laticínios e ovos, mercearia, congelados, outros.
-4. Pergunta se quer ajustar algum prato. Depois oferece a skill `cesto-mais-barato` para ver onde a lista fica mais barata.
+4. Pergunta se quer ajustar algum prato. Depois oferece a skill `comprar` para procurar os produtos mais baratos e pô-los no carrinho do supermercado que a pessoa escolher, ou comparar os três.

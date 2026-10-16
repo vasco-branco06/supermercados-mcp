@@ -4,29 +4,29 @@ Faz as compras do supermercado pelo Claude. Liga o Claude Code ao Continente, ao
 
 ## O que faz
 
-Depois de ligares as tuas contas, pedes ao Claude em linguagem normal e ele trata do resto:
+Cada supermercado é um servidor à parte, por isso podes falar com um só ou com os três. Dizes ao Claude o que precisas, em linguagem normal: uma lista de compras, uma receita ou pedidos soltos. E ele:
 
-- **Procurar produtos** nos três supermercados, com o preço, o preço por quilo ou litro e, quando o site o mostra, a marca.
-- **Pôr e tirar produtos do carrinho** da tua conta, mudar quantidades e mostrar o que lá está.
-- **Fazer uma lista inteira de uma vez**, por exemplo "põe no meu carrinho do Auchan 2 pacotes de leite meio gordo, 1 kg de arroz e uma dúzia de ovos".
+- **Compra no supermercado que disseres.** Procura cada produto, escolhe o mais barato (pelo preço por quilo ou litro, para a quantidade de que precisas) e põe-no no carrinho da tua conta.
+- **Compara os três, se não disseres nenhum** ou se pedires. Mostra o total do cesto em cada um e propõe onde fica mais barato.
+- **Pesquisa e gere o carrinho** quando só queres ver preços, mudar quantidades, tirar coisas ou ver o que lá está.
 
 O plugin nunca encomenda nem paga. A encomenda e o pagamento ficam sempre do teu lado, no site do supermercado.
 
 Exemplos de pedidos:
 
-- "Procura frango nos três supermercados e mostra-me os preços."
+- "Põe no meu carrinho do Auchan o que preciso para uma lasanha para 4."
+- "Preciso de leite, ovos, arroz e frango. Onde fica mais barato?"
+- "Compra isto no Continente: 2 leites meio gordos e 1 kg de arroz agulha."
 - "O que tenho no carrinho do Pingo Doce?"
-- "Tira o arroz do carrinho do Auchan e põe 2 pacotes de massa."
+
+A skill `comprar` é a que diz ao Claude como fazer isto (escolher o mais barato, comparar, pedir confirmação antes de pôr no carrinho). Vem com o plugin.
 
 ### Extras: skills opcionais
 
-O plugin traz também três skills que usam estas ligações, para quem quiser mais ajuda:
-
 - `perfil`: uma entrevista curta, uma pergunta de cada vez, sobre o que tens na cozinha, as restrições e os teus gostos.
-- `receitas-semana`: cria as refeições da semana e junta tudo numa lista de compras com as quantidades somadas.
-- `cesto-mais-barato`: procura cada item da lista nos três supermercados, compara os preços e diz onde o cesto fica mais barato.
+- `receitas-semana`: cria as refeições da semana a partir do perfil e junta tudo numa lista de compras, que podes depois mandar comprar.
 
-Exemplo: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês."
+Exemplo: "Somos dois homens adultos. Queremos 3 refeições por dia com vaca, frango e peixe, altas em proteína, baixas em gordura, com hidratos médios, e gastar no máximo 350 € por mês. Faz o plano e compra no supermercado mais barato."
 
 ## Instalação no Windows 11
 
@@ -52,13 +52,13 @@ Passos:
 3. Fecha e volta a abrir o Claude Code.
 4. Escreve `/mcp`. Deves ver três servidores: `continente`, `pingo-doce` e `auchan`. A primeira vez que cada um arranca demora um pouco, porque o `npx` descarrega o pacote.
 5. Na primeira vez abre-se o Bloco de Notas com o ficheiro de credenciais. Preenche o email e a palavra-passe do Auchan e do Continente (e, se quiseres, o número do Pingo Doce) se quiseres usar o carrinho (podes deixar em branco e voltar mais tarde), guarda com Ctrl+S e fecha.
-6. Começa por pedir, por exemplo: "Procura leite meio gordo no Auchan". Para as skills extra, escreve "Faz o meu perfil".
+6. Começa por pedir, por exemplo: "Procura leite meio gordo no Auchan". Para o plano da semana, escreve "Faz o meu perfil".
 
 A pesquisa de produtos funciona sem conta em nenhum dos três supermercados. Não precisas de instalar mais nada para o Pingo Doce e o Auchan.
 
 ## Instalar só os servidores, sem o plugin
 
-Se não queres o plugin, podes ligar os três servidores MCP diretamente ao teu cliente. Ficas sem as skills (`perfil`, `receitas-semana`, `cesto-mais-barato`) e sem o histórico, mas podes pedir ao Claude coisas como "procura leite meio gordo nos três supermercados e põe 2 no meu carrinho do Auchan". O login funciona da mesma forma.
+Se não queres o plugin, podes ligar os três servidores MCP diretamente ao teu cliente. Ficas sem as skills (`comprar`, `perfil`, `receitas-semana`) e sem o histórico, mas podes pedir ao Claude coisas como "procura leite meio gordo nos três supermercados e põe 2 no meu carrinho do Auchan". O login funciona da mesma forma.
 
 **Claude Code.** No PowerShell, uma vez (o `--scope user` serve para todas as pastas):
 
