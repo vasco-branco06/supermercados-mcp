@@ -37,6 +37,7 @@ export function createSession({
   log = console.error,
   loadPlaywright = () => import('playwright'),
   loginTimeoutMs = 5 * 60 * 1000,
+  silentTimeoutMs = 12000,
   pollMs = 3000,
   sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
 }) {
@@ -118,6 +119,50 @@ export function createSession({
     }
   }
 
+  // The short shop session (dwsid) ends quickly, but the central login (login.auchan.pt) remembers the
+  // person for much longer. A headless browser with the saved cookies follows the same "Entrar" link a
+  // person would and, when the central login still knows them, comes back logged in with no window.
+  async function silentRefresh(savedCookies) {
+    let browser = null;
+    try {
+      const { chromium } = await pw();
+      for (const channel of BROWSER_CHANNELS) {
+        try { browser = await chromium.launch({ headless: true, ...(channel && { channel }) }); break; } catch { /* next browser */ }
+      }
+      if (!browser) return null;
+      const context = await browser.newContext({ locale: 'pt-PT', userAgent: USER_AGENT });
+      await context.addCookies(savedCookies);
+      const page = await context.newPage();
+      await throttle(() => page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }));
+      const deadline = Date.now() + silentTimeoutMs;
+      while (Date.now() < deadline) {
+        await sleep(pollMs);
+        const url = new URL(page.url());
+        if (url.hostname === 'www.auchan.pt' && !/login/i.test(url.pathname) && await isLoggedIn(context.request)) {
+          const cookies = await context.cookies();
+          writeCookies(cookieFile, cookies);
+          return cookies;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      await browser?.close().catch(() => {});
+    }
+  }
+
+  // Keeps cookies the site renewed while the server ran, at most every five minutes.
+  let lastPersist = 0;
+  async function persist(force = false) {
+    if (!api || (!force && Date.now() - lastPersist < 5 * 60 * 1000)) return;
+    lastPersist = Date.now();
+    try {
+      const { cookies } = await api.storageState();
+      if (cookies.length) writeCookies(cookieFile, cookies);
+    } catch { /* the saved copy stays as it was */ }
+  }
+
   // Returns 'saved' when the stored session still works, 'window' when the person had to log in.
   function ensureSession() {
     if (api && loggedIn) return Promise.resolve('saved');
@@ -126,10 +171,16 @@ export function createSession({
         const saved = readCookies(cookieFile);
         if (saved) {
           await openApi(saved);
-          const logged = await isLoggedIn(api);
-          if (logged && await hasDeliveryContext(api)) { loggedIn = true; return 'saved'; }
-          log(logged ? '[auth] Falta escolher a entrega.' : '[auth] A sessão guardada expirou.');
-          await openApi(await interactiveLogin(logged ? saved : null));
+          let logged = await isLoggedIn(api);
+          let current = saved;
+          if (!logged) {
+            log('[auth] A sessão do site expirou; vou tentar renová-la sem janela.');
+            const renewed = await silentRefresh(saved);
+            if (renewed) { current = renewed; await openApi(renewed); logged = true; }
+          }
+          if (logged && await hasDeliveryContext(api)) { loggedIn = true; await persist(true); return 'saved'; }
+          log(logged ? '[auth] Falta escolher a entrega.' : '[auth] Preciso que entres outra vez.');
+          await openApi(await interactiveLogin(logged ? current : null));
           loggedIn = true;
           return 'window';
         }
@@ -161,6 +212,7 @@ export function createSession({
       result = await call(method, path, form);
       if (/login/i.test(new URL(result.url).pathname)) throw new Error('o site não aceitou a sessão; tenta usar a ferramenta login de novo');
     }
+    await persist();
     return { status: result.status, text: result.text };
   }
 
@@ -175,6 +227,7 @@ export function createSession({
   }
 
   async function close() {
+    await persist(true);
     const current = api;
     api = null;
     loggedIn = false;

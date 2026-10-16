@@ -22,7 +22,7 @@ const response = (url, { status = 200, text = '' } = {}) => ({
 const CART = 'https://www.auchan.pt/pt/carrinho-compras';
 
 // A fake Playwright: `accountOk` decides what the account page says; `launches` records the browser windows.
-function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, missingChannels = [], windowClosesAfter = Infinity, afterLoginUrl = 'https://www.auchan.pt/pt/' } = {}) {
+function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, silentFails = false, missingChannels = [], windowClosesAfter = Infinity, afterLoginUrl = 'https://www.auchan.pt/pt/' } = {}) {
   const launches = [];
   const apis = [];
   const state = { polls: 0, urlCalls: 0, windowClosed: 0, pageUrl: 'https://www.auchan.pt/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Login-OAuthLogin' };
@@ -34,6 +34,7 @@ function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, missi
     },
     async post(url) { return response(url, { text: '{}' }); },
     async dispose() {},
+    async storageState() { return { cookies: state.rotated ?? COOKIES }; },
   });
   return {
     launches, apis, state,
@@ -42,6 +43,7 @@ function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, missi
         launches.push(options);
         if (options.channel ? missingChannels.includes(options.channel) : missingChannels.includes('bundled')) throw new Error('not installed');
         let onDisconnect;
+        const headless = options.headless;
         return {
           on(event, fn) { if (event === 'disconnected') onDisconnect = fn; },
           async close() { state.windowClosed++; },
@@ -53,7 +55,7 @@ function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, missi
               async newPage() {
                 return {
                   async goto(url) { state.gotoUrl = url; },
-                  url() { return state.urlCalls++ >= 1 ? afterLoginUrl : state.pageUrl; },
+                  url() { return !(headless && silentFails) && state.urlCalls++ >= 1 ? afterLoginUrl : state.pageUrl; },
                 };
               },
             };
@@ -71,7 +73,7 @@ function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, missi
   };
 }
 
-const quick = { pollMs: 1, sleep: ms => new Promise(r => setTimeout(r, ms)), log() {} };
+const quick = { pollMs: 1, silentTimeoutMs: 40, sleep: ms => new Promise(r => setTimeout(r, ms)), log() {} };
 
 test('a saved session that still works opens no browser window', async (t) => {
   const cookieFile = tmp(t);
@@ -161,4 +163,34 @@ test('a saved login that lacks the delivery choice reopens the site with that lo
   assert.equal(await session.login(), 'window');
   assert.deepEqual(probe.state.addedCookies, COOKIES, 'the saved login is loaded into the window');
   assert.equal(probe.state.gotoUrl, 'https://www.auchan.pt/pt/', 'it opens the site, not the login page');
+});
+
+test('an expired shop session is renewed with no window when the central login still knows the person', async (t) => {
+  const cookieFile = tmp(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const probe = fakePlaywright({ accountOk: () => probe.state.polls >= 1 });
+  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
+  assert.equal(await session.login(), 'saved');
+  assert.equal(probe.launches.length, 1);
+  assert.equal(probe.launches[0].headless, true, 'the renewal runs in the background');
+  assert.equal(probe.state.windowClosed, 1);
+});
+
+test('when the renewal does not work, the person is asked with a window', async (t) => {
+  const cookieFile = tmp(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const probe = fakePlaywright({ accountOk: () => probe.state.polls >= 2, silentFails: true });
+  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
+  assert.equal(await session.login(), 'window');
+  assert.deepEqual(probe.launches.map(l => l.headless), [true, false], 'background first, then a visible window');
+});
+
+test('cookies the site renewed while running are saved for next time', async (t) => {
+  const cookieFile = tmp(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const probe = fakePlaywright();
+  probe.state.rotated = [{ name: 'dwsid', value: 'renewed', domain: 'www.auchan.pt', path: '/' }];
+  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
+  await session.site.get('/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Cart-Show');
+  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), probe.state.rotated);
 });

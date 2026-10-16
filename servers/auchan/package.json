@@ -1,6 +1,6 @@
 {
   "name": "auchan-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Servidor MCP para o Auchan.pt: pesquisa de produtos e gestão do carrinho.",
   "type": "module",
   "main": "dist/index.js",
