@@ -13,38 +13,47 @@ const BROWSER_CHANNELS = ['msedge', 'chrome', undefined];
 const NO_PLAYWRIGHT = 'falta o Playwright; instala o pacote de novo (npm install auchan-mcp)';
 const NO_BROWSER = 'não encontrei o Microsoft Edge nem o Google Chrome para abrir a janela de login; instala um deles ou corre "npx playwright install chromium"';
 
-export function writeCookies(path, cookies) {
+// The saved session is a Playwright storage state: cookies plus the browser's local storage, where
+// logins often keep a "known device" key. Older files held just the cookie list.
+export function writeState(path, state) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  writeFileSync(path, JSON.stringify(cookies, null, 2), { mode: 0o600 });
+  writeFileSync(path, JSON.stringify(state, null, 2), { mode: 0o600 });
   chmodSync(path, 0o600);
 }
 
-function readCookies(path) {
+function readState(path) {
   if (!existsSync(path)) return null;
   try {
-    const cookies = JSON.parse(readFileSync(path, 'utf8'));
-    return Array.isArray(cookies) && cookies.length ? cookies : null;
+    const saved = JSON.parse(readFileSync(path, 'utf8'));
+    const state = Array.isArray(saved) ? { cookies: saved, origins: [] } : { cookies: saved?.cookies, origins: saved?.origins ?? [] };
+    return Array.isArray(state.cookies) && state.cookies.length ? state : null;
   } catch {
     return null;
   }
 }
 
 // Login is done by the person, in a normal browser window; no password ever reaches this code.
-// Only the session cookies are kept, in cookieFile. After login every cart request is plain HTTP
-// through Playwright's request client, so the window is closed as soon as the login works.
+// Only the session is kept, in cookieFile. After login every cart request is plain HTTP through
+// Playwright's request client, so the window is closed as soon as the login works.
+// While the server runs, a light request every `keepAliveMs` stops the shop closing the session
+// for inactivity, and anything the site renews is saved for next time.
 export function createSession({
   cookieFile,
   log = console.error,
   loadPlaywright = () => import('playwright'),
   loginTimeoutMs = 5 * 60 * 1000,
-  silentTimeoutMs = 12000,
+  keepAliveMs = 10 * 60 * 1000,
   pollMs = 3000,
   sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
 }) {
   let playwright = null;
   let api = null;
+  let state = null; // what is saved on disk: cookies and local storage
   let loggedIn = false;
   let pending = null;
+  let inFlight = 0;
+  let timer = null;
+  let beating = false;
 
   async function pw() {
     if (!playwright) {
@@ -53,12 +62,13 @@ export function createSession({
     return playwright;
   }
 
-  async function openApi(cookies) {
+  async function openApi(next) {
+    state = next;
     await api?.dispose().catch(() => {});
     api = await (await pw()).request.newContext({
       userAgent: USER_AGENT,
       locale: 'pt-PT',
-      storageState: { cookies, origins: [] },
+      storageState: { cookies: next.cookies, origins: [] },
     });
   }
 
@@ -76,28 +86,28 @@ export function createSession({
     return res.ok() && /data-has-context="true"/.test(await res.text());
   }
 
-  async function launchWindow(chromium) {
+  async function launch(chromium, headless) {
     for (const channel of BROWSER_CHANNELS) {
       try {
-        return await chromium.launch({ headless: false, ...(channel && { channel }) });
+        return await chromium.launch({ headless, ...(channel && { channel }) });
       } catch { /* try the next browser */ }
     }
-    throw new Error(NO_BROWSER);
+    return null;
   }
 
-  async function interactiveLogin(savedCookies = null) {
+  async function interactiveLogin(saved = null) {
     const { chromium } = await pw();
-    const browser = await launchWindow(chromium);
+    const browser = await launch(chromium, false);
+    if (!browser) throw new Error(NO_BROWSER);
     const closed = new Promise(resolve => browser.on('disconnected', () => resolve('closed')));
     try {
-      const context = await browser.newContext({ locale: 'pt-PT' });
-      // With a saved login only the delivery choice is missing, so open the site instead of the login page.
-      if (savedCookies) await context.addCookies(savedCookies);
+      // With a saved login only the delivery choice may be missing, so open the site instead of the login page.
+      const context = await browser.newContext({ locale: 'pt-PT', ...(saved && { storageState: saved }) });
       const page = await context.newPage();
-      log(savedCookies
+      log(saved
         ? '[auth] Abri uma janela do browser: escolhe a entrega ou o levantamento no Auchan.'
         : '[auth] Abri uma janela do browser: faz o login no Auchan e escolhe a entrega ou o levantamento.');
-      await throttle(() => page.goto(savedCookies ? `${AUCHAN_BASE}/pt/` : LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }));
+      await throttle(() => page.goto(saved ? `${AUCHAN_BASE}/pt/` : LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }));
       const deadline = Date.now() + loginTimeoutMs;
       while (Date.now() < deadline) {
         if (await Promise.race([closed, sleep(pollMs).then(() => 'tick')]) === 'closed') {
@@ -107,10 +117,10 @@ export function createSession({
         const url = new URL(page.url());
         if (url.hostname !== 'www.auchan.pt' || /login/i.test(url.pathname)) continue;
         if (await isLoggedIn(context.request) && await hasDeliveryContext(context.request)) {
-          const cookies = await context.cookies();
-          writeCookies(cookieFile, cookies);
+          const next = await context.storageState();
+          writeState(cookieFile, next);
           log('[auth] Sessão iniciada.');
-          return cookies;
+          return next;
         }
       }
       throw new Error('o login não terminou em 5 minutos; tenta de novo');
@@ -119,48 +129,33 @@ export function createSession({
     }
   }
 
-  // The short shop session (dwsid) ends quickly, but the central login (login.auchan.pt) remembers the
-  // person for much longer. A headless browser with the saved cookies follows the same "Entrar" link a
-  // person would and, when the central login still knows them, comes back logged in with no window.
-  async function silentRefresh(savedCookies) {
-    let browser = null;
-    try {
-      const { chromium } = await pw();
-      for (const channel of BROWSER_CHANNELS) {
-        try { browser = await chromium.launch({ headless: true, ...(channel && { channel }) }); break; } catch { /* next browser */ }
-      }
-      if (!browser) return null;
-      const context = await browser.newContext({ locale: 'pt-PT', userAgent: USER_AGENT });
-      await context.addCookies(savedCookies);
-      const page = await context.newPage();
-      await throttle(() => page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }));
-      const deadline = Date.now() + silentTimeoutMs;
-      while (Date.now() < deadline) {
-        await sleep(pollMs);
-        const url = new URL(page.url());
-        if (url.hostname === 'www.auchan.pt' && !/login/i.test(url.pathname) && await isLoggedIn(context.request)) {
-          const cookies = await context.cookies();
-          writeCookies(cookieFile, cookies);
-          return cookies;
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    } finally {
-      await browser?.close().catch(() => {});
-    }
-  }
-
-  // Keeps cookies the site renewed while the server ran, at most every five minutes.
+  // Keeps what the site renewed while the server ran, at most every five minutes unless forced.
   let lastPersist = 0;
   async function persist(force = false) {
-    if (!api || (!force && Date.now() - lastPersist < 5 * 60 * 1000)) return;
+    if (!api || !state || (!force && Date.now() - lastPersist < 5 * 60 * 1000)) return;
     lastPersist = Date.now();
     try {
       const { cookies } = await api.storageState();
-      if (cookies.length) writeCookies(cookieFile, cookies);
+      if (cookies.length) {
+        state = { cookies, origins: state.origins };
+        writeState(cookieFile, state);
+      }
     } catch { /* the saved copy stays as it was */ }
+  }
+
+  function startKeepAlive() {
+    if (timer || !keepAliveMs) return;
+    timer = setInterval(async () => {
+      if (!api || !loggedIn || pending || inFlight || beating) return;
+      beating = true;
+      try {
+        if (await isLoggedIn(api)) { await persist(true); return; }
+        // The shop closed the session. Auchan's central login always asks for the password again
+        // (checked live), so the next cart call asks the person, with a window.
+        loggedIn = false;
+      } catch { /* offline or blocked: try again at the next beat */ } finally { beating = false; }
+    }, keepAliveMs);
+    timer.unref?.();
   }
 
   // Returns 'saved' when the stored session still works, 'window' when the person had to log in.
@@ -168,24 +163,20 @@ export function createSession({
     if (api && loggedIn) return Promise.resolve('saved');
     pending ??= (async () => {
       try {
-        const saved = readCookies(cookieFile);
+        const saved = readState(cookieFile);
         if (saved) {
           await openApi(saved);
-          let logged = await isLoggedIn(api);
-          let current = saved;
-          if (!logged) {
-            log('[auth] A sessão do site expirou; vou tentar renová-la sem janela.');
-            const renewed = await silentRefresh(saved);
-            if (renewed) { current = renewed; await openApi(renewed); logged = true; }
-          }
-          if (logged && await hasDeliveryContext(api)) { loggedIn = true; await persist(true); return 'saved'; }
-          log(logged ? '[auth] Falta escolher a entrega.' : '[auth] Preciso que entres outra vez.');
-          await openApi(await interactiveLogin(logged ? current : null));
+          const logged = await isLoggedIn(api);
+          if (logged && await hasDeliveryContext(api)) { loggedIn = true; await persist(true); startKeepAlive(); return 'saved'; }
+          log(logged ? '[auth] Falta escolher a entrega.' : '[auth] A sessão guardada expirou.');
+          await openApi(await interactiveLogin(logged ? saved : null));
           loggedIn = true;
+          startKeepAlive();
           return 'window';
         }
         await openApi(await interactiveLogin());
         loggedIn = true;
+        startKeepAlive();
         return 'window';
       } finally {
         pending = null;
@@ -203,17 +194,22 @@ export function createSession({
   });
 
   async function request(method, path, form) {
-    await ensureSession();
-    let result = await call(method, path, form);
-    if (/login/i.test(new URL(result.url).pathname)) {
-      // The session ended while the server was running: ask the person to log in again, once.
-      loggedIn = false;
+    inFlight++;
+    try {
       await ensureSession();
-      result = await call(method, path, form);
-      if (/login/i.test(new URL(result.url).pathname)) throw new Error('o site não aceitou a sessão; tenta usar a ferramenta login de novo');
+      let result = await call(method, path, form);
+      if (/login/i.test(new URL(result.url).pathname)) {
+        // The session ended while the server was running: ask the person to log in again, once.
+        loggedIn = false;
+        await ensureSession();
+        result = await call(method, path, form);
+        if (/login/i.test(new URL(result.url).pathname)) throw new Error('o site não aceitou a sessão; tenta usar a ferramenta login de novo');
+      }
+      await persist();
+      return { status: result.status, text: result.text };
+    } finally {
+      inFlight--;
     }
-    await persist();
-    return { status: result.status, text: result.text };
   }
 
   // The `site` interface cart.js expects: relative paths on auchan.pt only.
@@ -227,6 +223,7 @@ export function createSession({
   }
 
   async function close() {
+    if (timer) { clearInterval(timer); timer = null; }
     await persist(true);
     const current = api;
     api = null;

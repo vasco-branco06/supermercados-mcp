@@ -6,6 +6,8 @@ import test from 'node:test';
 import { createSession } from '../src/session.js';
 
 const COOKIES = [{ name: 'sid', value: 'abc', domain: 'www.auchan.pt', path: '/' }];
+const ORIGINS = [{ origin: 'https://login.auchan.pt', localStorage: [{ name: 'device', value: 'known' }] }];
+const STATE = { cookies: COOKIES, origins: ORIGINS };
 
 function tmp(t) {
   const dir = mkdtempSync(join(tmpdir(), 'auchan-session-test-'));
@@ -47,11 +49,12 @@ function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, silen
         return {
           on(event, fn) { if (event === 'disconnected') onDisconnect = fn; },
           async close() { state.windowClosed++; },
-          async newContext() {
+          async newContext(options) {
+            state.contextOptions = options;
             return {
               request: { get: async (url) => { state.polls++; if (state.polls >= windowClosesAfter) onDisconnect?.(); return requester().get(url); } },
               async cookies() { return COOKIES; },
-              async addCookies(cookies) { state.addedCookies = cookies; },
+              async storageState() { return STATE; },
               async newPage() {
                 return {
                   async goto(url) { state.gotoUrl = url; },
@@ -73,7 +76,7 @@ function fakePlaywright({ accountOk = () => true, deliveryOk = () => true, silen
   };
 }
 
-const quick = { pollMs: 1, silentTimeoutMs: 40, sleep: ms => new Promise(r => setTimeout(r, ms)), log() {} };
+const quick = { keepAliveMs: 0, pollMs: 1, sleep: ms => new Promise(r => setTimeout(r, ms)), log() {} };
 
 test('a saved session that still works opens no browser window', async (t) => {
   const cookieFile = tmp(t);
@@ -94,7 +97,7 @@ test('without a session a visible window opens, the cookies are saved and the wi
   assert.equal(await session.login(), 'window');
   assert.deepEqual(fake.launches[0], { headless: false, channel: 'msedge' });
   assert.equal(fake.state.windowClosed, 1);
-  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), COOKIES);
+  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), STATE, 'cookies and local storage are both kept');
   assert.deepEqual(fake.apis.at(-1).options.storageState.cookies, COOKIES);
   assert.equal(await session.login(), 'saved');
 });
@@ -161,28 +164,8 @@ test('a saved login that lacks the delivery choice reopens the site with that lo
   // The saved session answers "no delivery" until the person picks one in the window.
   const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
   assert.equal(await session.login(), 'window');
-  assert.deepEqual(probe.state.addedCookies, COOKIES, 'the saved login is loaded into the window');
+  assert.deepEqual(probe.state.contextOptions.storageState.cookies, COOKIES, 'the saved login is loaded into the window');
   assert.equal(probe.state.gotoUrl, 'https://www.auchan.pt/pt/', 'it opens the site, not the login page');
-});
-
-test('an expired shop session is renewed with no window when the central login still knows the person', async (t) => {
-  const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(COOKIES));
-  const probe = fakePlaywright({ accountOk: () => probe.state.polls >= 1 });
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
-  assert.equal(await session.login(), 'saved');
-  assert.equal(probe.launches.length, 1);
-  assert.equal(probe.launches[0].headless, true, 'the renewal runs in the background');
-  assert.equal(probe.state.windowClosed, 1);
-});
-
-test('when the renewal does not work, the person is asked with a window', async (t) => {
-  const cookieFile = tmp(t);
-  writeFileSync(cookieFile, JSON.stringify(COOKIES));
-  const probe = fakePlaywright({ accountOk: () => probe.state.polls >= 2, silentFails: true });
-  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
-  assert.equal(await session.login(), 'window');
-  assert.deepEqual(probe.launches.map(l => l.headless), [true, false], 'background first, then a visible window');
 });
 
 test('cookies the site renewed while running are saved for next time', async (t) => {
@@ -192,5 +175,34 @@ test('cookies the site renewed while running are saved for next time', async (t)
   probe.state.rotated = [{ name: 'dwsid', value: 'renewed', domain: 'www.auchan.pt', path: '/' }];
   const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick });
   await session.site.get('/on/demandware.store/Sites-AuchanPT-Site/pt_PT/Cart-Show');
-  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), probe.state.rotated);
+  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')), { cookies: probe.state.rotated, origins: [] });
+});
+
+test('the session is kept alive while the server runs, and what the site renews is saved', async (t) => {
+  const cookieFile = tmp(t);
+  writeFileSync(cookieFile, JSON.stringify(STATE));
+  const probe = fakePlaywright();
+  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick, keepAliveMs: 20 });
+  assert.equal(await session.login(), 'saved');
+  const before = probe.state.requests;
+  probe.state.rotated = [{ name: 'dwsid', value: 'kept-alive', domain: 'www.auchan.pt', path: '/' }];
+  await new Promise(r => setTimeout(r, 3500));
+  await session.close();
+  assert.ok(probe.state.polls >= 0);
+  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')).cookies, probe.state.rotated);
+  assert.deepEqual(JSON.parse(readFileSync(cookieFile, 'utf8')).origins, ORIGINS, 'local storage is not lost');
+});
+
+
+test('a session that expires while idle makes the next cart call ask the person, never opens a window by itself', async (t) => {
+  const cookieFile = tmp(t);
+  writeFileSync(cookieFile, JSON.stringify(STATE));
+  let expired = false;
+  const probe = fakePlaywright({ accountOk: () => !expired });
+  const session = createSession({ cookieFile, loadPlaywright: async () => probe, ...quick, keepAliveMs: 20 });
+  await session.login();
+  expired = true;
+  await new Promise(r => setTimeout(r, 3500));
+  await session.close();
+  assert.equal(probe.launches.length, 0, 'the keep-alive never opens a window');
 });

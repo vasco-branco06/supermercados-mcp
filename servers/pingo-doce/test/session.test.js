@@ -10,6 +10,8 @@ import { createSession } from '../src/session.js';
 import { PingoDoceServer } from '../src/index.js';
 
 const COOKIES = [{ name: 'dwsid', value: 'session-cookie', domain: 'www.pingodoce.pt', path: '/' }];
+const ORIGINS = [{ origin: 'https://www.pingodoce.pt', localStorage: [{ name: 'device', value: 'known' }] }];
+const STATE = { cookies: COOKIES, origins: ORIGINS };
 
 const response = (status, json = null) => ({ status: () => status, json: async () => json });
 
@@ -30,6 +32,7 @@ function fakePlaywright({ loggedIn = () => true, missingChannels = [], windowClo
       return response(200, { error: false, cart: { items: [{ id: options.form.pid, quantity: options.form.quantity, UUID: 'u' }] } });
     },
     dispose: async () => {},
+    storageState: async () => ({ cookies: state.rotated ?? COOKIES, origins: [] }),
   });
   return {
     launches, apis, state,
@@ -44,7 +47,7 @@ function fakePlaywright({ loggedIn = () => true, missingChannels = [], windowClo
             close: async () => { state.windowClosed++; },
             newContext: async () => ({
               request: { get: async (url) => { state.polls++; if (state.polls >= windowClosesAfter) onDisconnect?.(); return requester().get(url); } },
-              cookies: async () => COOKIES,
+              storageState: async () => STATE,
               newPage: async () => ({
                 goto: async () => {},
                 locator: () => ({ click: async () => {} }),
@@ -66,7 +69,7 @@ const tempFile = (t) => {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return join(dir, 'cookies.json');
 };
-const quick = { throttle: createQueue(), version: '1', pollMs: 1, log() {} };
+const quick = { throttle: createQueue(), version: '1', keepAliveMs: 0, pollMs: 1, log() {} };
 
 test('a saved session that still works opens no browser window', async (t) => {
   const cookieFile = tempFile(t);
@@ -87,7 +90,7 @@ test('without a session a visible window opens, the cookies are saved and the wi
   assert.deepEqual(fake.launches[0], { headless: false, channel: 'msedge' });
   assert.equal(fake.state.windowClosed, 1);
   const saved = readFileSync(cookieFile, 'utf8');
-  assert.deepEqual(JSON.parse(saved), COOKIES);
+  assert.deepEqual(JSON.parse(saved), STATE, 'cookies and local storage are both kept');
   assert.deepEqual(fake.apis.at(-1).options.storageState.cookies, COOKIES);
   assert.equal(await session.login(), 'saved');
   await session.request('Cart-Get');
@@ -191,4 +194,30 @@ test('the server lists the cart and login tools, and never echoes the session', 
   assert.match(outputs[4], /apaguei a sessão guardada/);
   for (const out of outputs) assert.ok(!out.includes('session-cookie'));
   assert.equal(existsSync(cookieFile), false);
+});
+
+test('the session is kept alive while the server runs, and what the site renews is saved', async (t) => {
+  const cookieFile = tempFile(t);
+  writeFileSync(cookieFile, JSON.stringify(STATE));
+  const fake = fakePlaywright();
+  const session = createSession({ cookieFile, loadPlaywright: fake.load, ...quick, keepAliveMs: 20 });
+  assert.equal(await session.login(), 'saved');
+  const checks = () => fake.state.requests.filter((url) => url.includes('Account-Show')).length;
+  const before = checks();
+  fake.state.rotated = [{ name: 'dwsid', value: 'kept-alive', domain: 'www.pingodoce.pt', path: '/' }];
+  await new Promise((r) => setTimeout(r, 150));
+  await session.close();
+  assert.ok(checks() > before, 'the keep-alive asked the site');
+  const saved = JSON.parse(readFileSync(cookieFile, 'utf8'));
+  assert.deepEqual(saved.cookies, fake.state.rotated);
+  assert.deepEqual(saved.origins, ORIGINS, 'local storage is not lost');
+});
+
+test('an old cookies-only file is still read', async (t) => {
+  const cookieFile = tempFile(t);
+  writeFileSync(cookieFile, JSON.stringify(COOKIES));
+  const fake = fakePlaywright();
+  const session = createSession({ cookieFile, loadPlaywright: fake.load, ...quick });
+  assert.equal(await session.login(), 'saved');
+  assert.equal(fake.launches.length, 0);
 });
