@@ -1,0 +1,45 @@
+{
+  "name": "pingo-doce-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Pingo Doce (pingodoce.pt): search products and manage your cart.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "pingo-doce-mcp": "src/index.js"
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "playwright install chromium",
+    "test": "node --test"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "pingo-doce",
+    "supermarket",
+    "portugal"
+  ],
+  "author": "Vasco Branco",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vascobranco2509/supermercados-mcp.git"
+  },
+  "files": [
+    "src/",
+    ".env.example",
+    "LICENSE",
+    "README.md"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "cheerio": "^1.2.0",
+    "zod": "^4.6.7"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.59.1"
+  }
+}
