@@ -8,6 +8,9 @@ import { normalizePingoDoce } from './shared.js';
 import { resolveStatePaths } from './paths.js';
 import { createQueue, createThrottle, validateToolInput } from './reliability.js';
 import { createSearcher } from './search.js';
+import { createCart } from './cart.js';
+import { loadCredentials } from './credentials.js';
+import { createSession } from './session.js';
 
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
@@ -26,24 +29,72 @@ const SEARCH_TOOL = {
   },
 };
 
+const CART_TOOLS = [
+  {
+    name: 'get_cart',
+    description: 'View your current Pingo Doce cart. Returns JSON with items and total.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'add_to_cart',
+    description: 'Add a product to the Pingo Doce cart by product_id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'string', description: 'Product ID from search results' },
+        quantity: { type: 'number', exclusiveMinimum: 0, description: 'Quantity (default: 1)' },
+      },
+      required: ['product_id'],
+    },
+  },
+  {
+    name: 'update_cart_item',
+    description: 'Set the quantity of a product already in the cart. Use quantity 0 to remove the line.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'string', description: 'Product ID from search results or the cart' },
+        quantity: { type: 'number', minimum: 0, description: 'Desired cart quantity' },
+      },
+      required: ['product_id', 'quantity'],
+    },
+  },
+];
+
 const CLOSE_TOOL = {
   name: 'close_session',
   description: 'Close the browser session used by the cart tools. Call when done to free resources.',
   inputSchema: { type: 'object', properties: {} },
 };
 
+const CHECKOUT_NOTE = 'A encomenda e o pagamento fazem-se no site pingodoce.pt.';
+
 export class PingoDoceServer {
-  constructor({ env = process.env, fetchImpl = fetch, now } = {}) {
+  constructor({ env = process.env, fetchImpl = fetch, now, loadPlaywright } = {}) {
     const paths = resolveStatePaths(env);
     this.throttle = createThrottle(1000);
     this.search = createSearcher({ version: VERSION, cacheDir: paths.cacheDir, throttle: this.throttle, fetchImpl, now });
+    // Cart tools exist only when ~/.pingodoce-mcp/credentials.env has both values.
+    const credentials = loadCredentials(env);
+    if (credentials) {
+      this.session = createSession({
+        credentials,
+        cookieFile: paths.cookieFile,
+        throttle: this.throttle,
+        version: VERSION,
+        headless: env.PINGODOCE_LOGIN_HEADLESS !== 'false',
+        ...(loadPlaywright ? { loadPlaywright } : {}),
+      });
+      this.cart = createCart({ request: this.session.request });
+    }
     this.server = new Server({ name: 'pingo-doce-mcp', version: VERSION }, { capabilities: { tools: {} } });
+    this.server.onclose = () => { void this.session?.close(); };
     this.pending = createQueue();
     this.setupTools();
   }
 
   tools() {
-    return [SEARCH_TOOL, CLOSE_TOOL];
+    return this.cart ? [SEARCH_TOOL, ...CART_TOOLS, CLOSE_TOOL] : [SEARCH_TOOL, CLOSE_TOOL];
   }
 
   setupTools() {
@@ -53,6 +104,7 @@ export class PingoDoceServer {
   }
 
   callTool(name, args = {}) {
+    // Tools run one at a time; the cart tools share one browser session.
     return this.pending(() => this.executeTool(name, args));
   }
 
@@ -63,8 +115,15 @@ export class PingoDoceServer {
       switch (name) {
         case 'search_products':
           return await this.handleSearch(args.query, args.limit ?? 10);
+        case 'get_cart':
+          return await this.handleGetCart();
+        case 'add_to_cart':
+          return await this.handleAddToCart(args.product_id, args.quantity ?? 1);
+        case 'update_cart_item':
+          return await this.handleUpdateCartItem(args.product_id, args.quantity);
         case 'close_session':
-          return text('Session closed.');
+          await this.session?.close();
+          return text('Sessão fechada.');
       }
     } catch (error) {
       return text(`Error: ${error.message}`, true);
@@ -84,6 +143,31 @@ export class PingoDoceServer {
     }
     const top = products.slice(0, limit);
     return text(JSON.stringify({ store: 'pingo-doce', query, count: top.length, products: top }));
+  }
+
+  async handleGetCart() {
+    const cart = await this.cart.getCart();
+    if (cart.error) return text(`Error: pingo-doce: não consegui ler o carrinho (${cart.error})`, true);
+    return text(JSON.stringify({ store: 'pingo-doce', count: cart.items.length, items: cart.items, total: cart.total }));
+  }
+
+  async handleAddToCart(productId, quantity) {
+    const result = await this.cart.addToCart(productId, quantity);
+    if (!result.success) {
+      return text(`Error: pingo-doce: não consegui adicionar ${productId} (${result.error}). Corre get_cart antes de tentar de novo.`, true);
+    }
+    return text(`Adicionado ao carrinho: ${productId}, agora com quantidade ${result.quantity}. Usa get_cart para rever. ${CHECKOUT_NOTE}`);
+  }
+
+  async handleUpdateCartItem(productId, quantity) {
+    const result = await this.cart.updateCartItem(productId, quantity);
+    if (result.error === 'not_found') return text(`Error: pingo-doce: o produto ${productId} não está no carrinho.`, true);
+    if (!result.success) {
+      return text(`Error: pingo-doce: não consegui mudar ${productId} (${result.error}). Corre get_cart antes de tentar de novo.`, true);
+    }
+    return text(quantity === 0
+      ? `Removido do carrinho: ${productId}. ${CHECKOUT_NOTE}`
+      : `Quantidade de ${productId} no carrinho: ${quantity}. ${CHECKOUT_NOTE}`);
   }
 
   async start() {

@@ -78,5 +78,5 @@ test('cart tools do not exist without credentials', async () => {
 
 test('close_session always answers', async () => {
   const result = await (await connect()).callTool({ name: 'close_session', arguments: {} });
-  assert.equal(result.content[0].text, 'Session closed.');
+  assert.equal(result.content[0].text, 'Sessão fechada.');
 });
