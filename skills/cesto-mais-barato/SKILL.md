@@ -22,7 +22,7 @@ Para cada item, chama `search_products` em cada servidor (`continente`, `pingo-d
 
 ## 3. Comparar
 
-- Produtos com `available: false` ficam de fora.
+- Só `available: false` exclui um produto. `available: null` quer dizer "não sabemos" (nenhum dos três sites mostra disponibilidade na pesquisa): o produto entra na comparação.
 - Quando os tamanhos são diferentes, compara pelo `unit_price` e `unit` (euros por kg, litro ou unidade). No Continente o `unit` vem como texto (`0,89€/lt` quer dizer 0,89 euros por litro). Se faltar o preço por unidade, avisa que a comparação por unidade não é possível para esse produto e compara só o preço da embalagem, dizendo-o.
 - Escolhe em cada supermercado o produto que melhor corresponde ao item e diz quantas embalagens cobrem a lista.
 - Marca como "a confirmar" as equivalências duvidosas: marcas diferentes, tamanhos muito diferentes, ou nomes que podem não ser o mesmo produto. Pede à pessoa para confirmar antes de fechar.
