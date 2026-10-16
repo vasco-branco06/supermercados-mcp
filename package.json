@@ -5,10 +5,10 @@
   "description": "Plugin do Claude Code: compara cestos entre Continente, Pingo Doce e Auchan.",
   "type": "module",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test shared/"
   },
   "license": "MIT",
   "dependencies": {

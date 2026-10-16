@@ -61,6 +61,19 @@ Nos servidores do Pingo Doce e do Auchan, a resposta MCP tem um único bloco de 
 - Erro (site mudou, bloqueio, sem rede): resposta com `isError: true` e uma frase que diz o que falhou, por exemplo `Error: pingo-doce: não encontrei os preços na página (o site pode ter mudado)`. Nunca um produto com preço inventado.
 - O Continente responde em texto formatado (é o servidor do David, não se altera). A skill extrai de lá `name, price, product_id, url, unit` e usa `normalizeContinente`.
 
+## Resposta de `get_cart`
+
+Nos servidores do Pingo Doce e do Auchan, a resposta é um único bloco de texto com JSON:
+
+```json
+{ "store": "auchan", "count": 1, "items": [ { "product_id": "3010403", "name": "...", "quantity": 2, "price": 0.85 } ], "total": "1,70 €" }
+```
+
+- `price` é número ou null; `total` é o texto que o site mostra, ou null.
+- Só estes campos. Nunca tokens, cookies, identificadores internos da sessão nem credenciais.
+- Erro: `isError: true` com uma frase, como na pesquisa.
+- `add_to_cart` e `update_cart_item` respondem com uma frase curta em português; `update_cart_item` com quantidade 0 remove a linha.
+
 ## Normalização
 
 - `normalizeContinente(raw, fetched_at)`: `raw` é o objeto que o código do David devolve por produto (`name, price, currency, product_id, url, unit, minimum`).
