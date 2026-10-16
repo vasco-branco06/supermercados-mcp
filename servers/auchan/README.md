@@ -60,7 +60,6 @@ Com o servidor a correr, faz um pedido leve de 10 em 10 minutos para o Auchan n�
 
 ## Mais
 
-- **Sem ficheiro de credenciais:** existe o ramo [`login-por-janela`](https://github.com/vasco-branco06/supermercados-mcp/tree/login-por-janela), em que a pessoa entra numa janela do browser e a palavra-passe nunca é guardada.
 - **Definições:** variáveis em [`.env.example`](.env.example).
 - **Problemas:** [docs/troubleshooting.md](docs/troubleshooting.md).
 - **Testes:** `npm test` corre sem internet. `LIVE=1` liga um teste que faz um pedido real ao Auchan.pt (no PowerShell: `$env:LIVE=1; npm test`).

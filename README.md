@@ -85,10 +85,6 @@ No Auchan, o carrinho só aceita produtos depois de escolheres uma vez, no site,
 
 Não existe nenhuma ferramenta para finalizar a encomenda ou pagar.
 
-### Duas versões
-
-Este ramo (`main`) usa o ficheiro de credenciais, que dura mais porque o plugin renova a sessão sozinho. O ramo [`login-por-janela`](https://github.com/vasco-branco06/supermercados-mcp/tree/login-por-janela) usa só uma janela de login, sem guardar a palavra-passe em lado nenhum; em contrapartida, tens de entrar de novo quando o supermercado terminar a sessão.
-
 ## Privacidade
 
 Nada sai do teu computador, exceto os pedidos aos sites dos supermercados e a conversa com o Claude.
