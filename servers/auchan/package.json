@@ -1,0 +1,30 @@
+{
+  "name": "auchan-mcp",
+  "version": "0.1.0",
+  "description": "Servidor MCP para o Auchan.pt: pesquisa de produtos e gestão do carrinho.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "auchan-mcp": "src/index.js"
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "playwright install chromium",
+    "test": "node --test"
+  },
+  "keywords": ["mcp", "model-context-protocol", "auchan", "supermarket", "portugal"],
+  "author": "Vasco Branco",
+  "license": "MIT",
+  "files": ["src/", ".env.example", "LICENSE", "README.md"],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "cheerio": "^1.2.0",
+    "zod": "^4.6.7"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.59.1"
+  }
+}
